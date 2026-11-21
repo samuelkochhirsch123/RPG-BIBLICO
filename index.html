@@ -11,10 +11,11 @@
   <title>Heróis da Fé — Jornada Bíblica</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/icone-192.png">
-  <link rel="stylesheet" href="css/style.css">
-  <script defer src="js/data.js"></script>
-  <script defer src="js/art.js"></script>
-  <script defer src="js/game.js"></script>
+  <link rel="stylesheet" href="css/style.css?v=4.1">
+  <script defer src="js/data.js?v=4.1"></script>
+  <script defer src="js/adventures.js?v=4.1"></script>
+  <script defer src="js/art.js?v=4.1"></script>
+  <script defer src="js/game.js?v=4.1"></script>
 </head>
 <body>
 <div id="app" role="application" aria-label="Jogo Heróis da Fé">
@@ -43,6 +44,11 @@
   </div>
   <div id="interactionHint" class="interaction-hint" hidden>PRESSIONE AÇÃO</div>
   <div id="statusToast" class="status-toast" hidden></div>
+  <div id="cinematicOverlay" class="cinematic-overlay" hidden aria-live="polite">
+    <div class="cine-top"><span>HERÓIS DA FÉ</span><button id="skipCutscene" type="button">Pular cena ⏭</button></div>
+    <div class="cine-story"><div id="cineKicker">ÊXODO 14</div><h2 id="cineTitle">O MAR SE ABRE</h2><p id="cineCaption">O caminho está sendo preparado.</p></div>
+    <div class="cine-bottom"><span id="cineProgress"></span></div>
+  </div>
   <div id="rotationTip" class="rotation-tip" hidden>↻ Gire o celular para jogar na horizontal <button id="dismissRotation" type="button" aria-label="Dispensar aviso">×</button></div>
   <div id="touchControls" class="touch-controls" aria-label="Controles para celular">
     <div id="joystick" class="joystick" role="group" aria-label="Analógico virtual">
@@ -84,8 +90,8 @@
       <div id="instructionsSection" class="how-to">
         <h2>COMO JOGAR</h2>
         <ul>
-          <li>Explore o mapa e aproxime-se dos objetivos.</li>
-          <li>Use <strong>Ação</strong> ou <strong>E</strong> para interagir.</li>
+          <li>Explore o mapa, entre nas construções e encontre novas aventuras.</li>
+          <li>Use <strong>Ação</strong> ou <strong>E</strong> para abrir portas, resolver desafios e acionar cenas.</li>
           <li>A cada 1 minuto surge uma pergunta bíblica.</li>
           <li>Você tem 60 segundos para responder; a aventura fica pausada.</li>
           <li>Respostas erradas ou tempo esgotado custam um coração.</li>
