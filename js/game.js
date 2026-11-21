@@ -13,7 +13,7 @@
     state:'menu',level:0,selectedStage:0,unlocked:getUnlock(),skin:'homem',hearts:3,points:0,remotePlayers:[],
     player:{x:640,y:755},direction:'down',pose:0,walkMs:0,animTime:0,markers:[],animals:[],trees:[],decals:[],
     complete:0,laps:0,lapAngle:null,lapProgress:0,lapDirection:0,adventure:null,cinematic:null,
-    missionSeconds:0,nextQuestion:60,questionDeck:[],lastQuestionText:'',blockedHintAt:-99,quizRemaining:60,quizLimit:60,quizPayload:null,skill:null,modeHard:false,penalties:0,stageLimit:220,lapClock:0,introPlayed:false,escort:{x:640,y:755,far:0},keys:{},stick:{x:0,y:0},run:false,
+    missionSeconds:0,nextQuestion:60,questionDeck:[],lastQuestionText:'',quizRemaining:60,quizLimit:60,quizPayload:null,skill:null,modeHard:false,penalties:0,stageLimit:220,lapClock:0,introPlayed:false,escort:{x:640,y:755,far:0},keys:{},stick:{x:0,y:0},run:false,
     getTarget(){
       const lvl=D.levels[this.level],ad=this.adventure;
       if(lvl.type==='laps')return null;
@@ -32,7 +32,7 @@
     G.player={x:640,y:755};G.direction='down';G.walkMs=0;G.pose=0;
     G.complete=0;G.laps=0;G.lapAngle=null;G.lapProgress=0;G.lapDirection=0;
     G.missionSeconds=0;G.nextQuestion=60;G.quizRemaining=60;G.animTime=0;G.cinematic=null;G.skill=null;G.penalties=0;G.stageLimit=level[G.level].limit||240;G.lapClock=0;G.escort={x:640,y:755,far:0};
-    G.markers=[];G.animals=[];G.trees=[];G.decals=[];G.questionDeck=[];G.blockedHintAt=-99;
+    G.markers=[];G.animals=[];G.trees=[];G.decals=[];G.questionDeck=[];
     const stage=level[G.level];G.adventure=Adv.create(stage);
     if(stage.type==='arrive') {
       const kinds=['ovelhas','aves','bois','cabras'];
@@ -490,10 +490,8 @@
       // O ciclo da caminhada segue mesmo se o personagem pressionar a parede.
       const collision=Physics.move(G.player.x,G.player.y,x*speed*dt,y*speed*dt,G);
       G.player.x=collision.x;G.player.y=collision.y;
-      if(collision.hit && G.missionSeconds-G.blockedHintAt>4){
-        G.blockedHintAt=G.missionSeconds;
-        toast(collision.hit==='water'?(lvl.type==='sea'?'Água profunda! Aguarde a abertura do mar e atravesse pela terra seca.':'Água profunda! Use a ponte ou o caminho seguro.'):'Parede sólida! Procure a porta ou contorne a construção.',2.2);
-      }
+      // Paredes, muralhas e água bloqueiam o movimento sem interromper a animação
+      // e sem mostrar notificações repetidas por colisão.
       G.walkMs+=dt*1000;G.pose=(Math.floor(G.walkMs/175)%2);
       G.direction=Math.abs(x)>Math.abs(y)?(x>0?'right':'left'):(y>0?'down':'up');
       checkLaps(x,y);

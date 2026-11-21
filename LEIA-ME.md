@@ -1,4 +1,28 @@
-# Heróis da Fé — v6.2 | Multiplayer Beta
+## Esta versão já contém SUA configuração Firebase
+
+O arquivo `firebase-config.js` **já está preenchido** com o aplicativo Web do projeto `rpg-biblico-71e94` e o endereço de Realtime Database `https://rpg-biblico-71e94-default-rtdb.firebaseio.com`. **Não precisa editar o Firebase para publicar este ZIP.**
+
+O código recebido da console usava imports de SDK para apps empacotados; aqui usei apenas o objeto de configuração, porque este jogo carrega Firebase pelo módulo remoto sob demanda, quando o jogador entra no modo online. O Analytics não é necessário para o multiplayer.
+
+**As regras já foram publicadas pelo usuário**, segundo a conversa. O arquivo `database.rules.json` é fornecido como cópia de referência; subi-lo ao GitHub/Vercel não publica nem altera as regras no painel Firebase.
+
+**Antes do teste:** confirme que **Authentication → Sign-in method → Anônimo** está **Ativado** e que, em **Authorized domains**, está autorizado o endereço da Vercel (se necessário). Veja também se não há restrições indevidas na API Key no Google Cloud.
+
+### Substituir a versão antiga no repositório conectado à Vercel
+
+1. Extraia **RPG-Biblico-Firebase-Conectado-v6.3.2.zip**.
+2. Envie **o conteúdo** para a raiz do repositório GitHub já conectado à Vercel, substituindo os arquivos antigos e preservando as pastas `assets/`, `css/` e `js/`.
+3. Verifique o deploy da Vercel e abra a URL real do jogo em HTTPS.
+4. No celular A, toque em **Jogar online → Criar sala**. No celular B, toque em **Jogar online → Entrar com código**.
+5. Se falhar, veja a mensagem da tela; em particular, erro `auth/operation-not-allowed` significa que o login Anônimo não foi habilitado; `permission-denied` significa que regras/permissões do Realtime Database impediram a escrita.
+
+**Sem teste de rede real:** o arquivo está configurado, mas a conexão entre dois jogadores só pode ser confirmada em execução contra seu Firebase. O projeto não tem acesso às credenciais de administrador e não mexe nas regras publicadas.
+
+**Interface preservada:** recados na parte inferior, sem mensagens ao bater em paredes, hitbox para casas/muralhas, analógico e botões no celular, atalhos no PC. As 20 fases continuam no jogo, sem menu de fases de teste.
+
+---
+
+# Heróis da Fé — v6.3.2 | Firebase conectado — Multiplayer Beta
 
 Jogo bíblico original em pixel art com **20 fases Single Player** e **salas online cooperativas de 2 a 4 pessoas** usando Firebase Realtime Database. Publicável no **GitHub Pages** sem servidor Node, Python ou hospedagem paga.
 
@@ -21,7 +45,7 @@ Abra `index.html` por um servidor web estático (por exemplo GitHub Pages, Verce
 
 ## Funcionalidades online — beta
 
-- Sala com código de 6 caracteres, até 4 participantes.
+- Sala com código de 6 caracteres, até 4 participantes pela interface. O limite de quatro é validado no cliente, não é imposto atomicamente pelas regras do Realtime Database; partidas com acesso não autorizado precisam de backend/contadores de vagas para proteção mais forte.
 - Login anônimo Firebase; apelido sem cadastro com e-mail.
 - Skins próprias Homem / Mulher / Menino / Menina e outros jogadores no mapa em tempo real.
 - Sincronização das posições com intervalo de ~240 ms (mais econômica que enviar a cada frame).
@@ -63,7 +87,18 @@ Abra `index.html` por um servidor web estático (por exemplo GitHub Pages, Verce
 Para testar localmente no PC:
 
 ```sh
-cd RPG-Biblico-v6.2
+cd RPG-Biblico-v6.3
 python -m http.server 8000
 # Abra http://localhost:8000
 ```
+
+## Ajuste de interface v6.3
+
+- Mensagens informativas transitórias foram movidas para a **região inferior da tela**. No modo paisagem, ocupam a faixa entre os controles; em retrato, ficam acima dos botões.
+- O aviso **PRESSIONE AÇÃO** também foi reposicionado para baixo, evitando cobrir o personagem.
+- **Nenhuma mensagem aparece ao esbarrar em casas, muralhas ou água profunda.** As colisões seguem funcionando e a animação de caminhada permanece ativa se o jogador ficar encostado na parede.
+- As regras do Firebase foram corrigidas após detectar uso inválido de `numChildren()`; a escrita da raiz da sala agora é permitida somente para criação ou encerramento pelo anfitrião, evitando que uma regra permissiva no pai ignore permissões dos filhos. Se o seu arquivo `firebase-config.js` já estiver configurado na Vercel/GitHub, **não substitua pela configuração de exemplo**. Para atualizar só a interface, use o pacote de atualização parcial (index.html, css/style.css e js/game.js).
+
+## Correção das regras (v6.3.1)
+
+Se a aba Regras mostrar `No such method/property numChildren`, cole o conteúdo de `database.rules.json` e clique em **Publicar**. O novo arquivo remove `numChildren()` e restringe a escrita da sala, preservando as ações do líder e dos convidados. A publicação das regras no Firebase é separada da publicação do site na Vercel. Regras ainda precisam ser validadas no simulador do Firebase e com duas contas reais antes de uso amplo.

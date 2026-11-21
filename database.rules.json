@@ -3,9 +3,9 @@
     "rooms": {
       "$code": {
         ".read": "auth != null && $code.matches(/^[A-HJ-NP-Z2-9]{6}$/)",
-        ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() === auth.uid && newData.child('status').val() === 'lobby') || (data.exists() && data.child('hostUid').val() === auth.uid))",
+        ".write": "auth != null && $code.matches(/^[A-HJ-NP-Z2-9]{6}$/) && ((!data.exists() && newData.child('hostUid').val() === auth.uid && newData.child('status').val() === 'lobby' && newData.child('players').child(auth.uid).exists()) || (data.exists() && data.child('hostUid').val() === auth.uid && !newData.exists()))",
         "hostUid": {
-          ".validate": "newData.isString()"
+          ".validate": "newData.isString() && newData.val() === auth.uid"
         },
         "status": {
           ".write": "auth != null && root.child('rooms').child($code).child('hostUid').val() === auth.uid",
@@ -16,8 +16,8 @@
         },
         "players": {
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($code).child('hostUid').exists() && (data.exists() || (root.child('rooms').child($code).child('status').val() === 'lobby' && root.child('rooms').child($code).child('players').numChildren() < 4))",
-            ".validate": "newData.hasChildren(['name','skin','x','y','dir','pose','room','updatedAt']) && newData.child('name').isString() && newData.child('name').val().length <= 18 && newData.child('skin').isString() && newData.child('x').isNumber() && newData.child('x').val() >= 20 && newData.child('x').val() <= 1260 && newData.child('y').isNumber() && newData.child('y').val() >= 40 && newData.child('y').val() <= 940 && newData.child('pose').isNumber() && newData.child('room').isString() && newData.child('updatedAt').isNumber()"
+            ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($code).child('hostUid').exists() && (data.exists() || root.child('rooms').child($code).child('status').val() === 'lobby')",
+            ".validate": "auth.uid === $uid && newData.hasChildren(['name','skin','x','y','dir','pose','room','updatedAt']) && newData.child('name').isString() && newData.child('name').val().length <= 18 && newData.child('skin').isString() && newData.child('x').isNumber() && newData.child('x').val() >= 20 && newData.child('x').val() <= 1260 && newData.child('y').isNumber() && newData.child('y').val() >= 40 && newData.child('y').val() <= 940 && newData.child('pose').isNumber() && newData.child('room').isString() && newData.child('updatedAt').isNumber() && newData.child('name').val().length >= 1 && (newData.child('skin').val() === 'homem' || newData.child('skin').val() === 'mulher' || newData.child('skin').val() === 'menino' || newData.child('skin').val() === 'menina') && (newData.child('dir').val() === 'up' || newData.child('dir').val() === 'down' || newData.child('dir').val() === 'left' || newData.child('dir').val() === 'right') && (newData.child('room').val() === 'inside' || newData.child('room').val() === 'outdoor')"
           }
         },
         "state": {
@@ -32,7 +32,8 @@
         },
         "$other": {
           ".validate": false
-        }
+        },
+        ".validate": "newData.hasChildren(['hostUid', 'status', 'createdAt', 'players'])"
       }
     },
     "profiles": {
