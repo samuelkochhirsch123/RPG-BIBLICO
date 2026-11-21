@@ -1,0 +1,47 @@
+/* Histórias e perguntas originais para o jogo; referências: Bíblia (Gênesis, Êxodo, Josué, Evangelhos e Atos). */
+window.BibliaData = Object.freeze({
+  levels: [
+    {title:'Noé — Preparando a arca',reference:'Gênesis 6–7',theme:'forest',type:'collect',count:3,mission:'Reúna provisões para a arca',story:'Deus instruiu Noé a construir a arca e guardar alimento. Nesta adaptação, você ajuda na preparação.',items:['Provisões','Água','Mantimentos']},
+    {title:'Noé — A chegada dos animais',reference:'Gênesis 7:8–9',theme:'forest',type:'arrive',count:4,mission:'Receba os quatro grupos de animais',story:'Os animais vieram a Noé para entrar na arca. Eles chegam por conta própria; sua missão é acolher cada grupo perto da entrada.',items:['Ovelhas','Aves','Bois','Cabras']},
+    {title:'Noé — Um novo começo',reference:'Gênesis 8–9',theme:'forest',type:'collect',count:3,mission:'Encontre símbolos do novo começo',story:'Depois do dilúvio, Deus estabeleceu uma aliança e deu o arco nas nuvens como sinal.',items:['Monte','Altar','Aliança']},
+    {title:'Abraão — O chamado',reference:'Gênesis 12',theme:'desert',type:'collect',count:3,mission:'Siga os marcos da jornada',story:'Abrão partiu de sua terra confiando na promessa de Deus.',items:['Partida','Caminho','Promessa']},
+    {title:'José — Perseverança',reference:'Gênesis 37–45',theme:'desert',type:'collect',count:4,mission:'Descubra a história de José',story:'Mesmo em meio às dificuldades, José se manteve fiel.',items:['Túnica','Sonhos','Egito','Perdão']},
+    {title:'Moisés — A sarça ardente',reference:'Êxodo 3',theme:'desert',type:'collect',count:3,mission:'Siga os sinais até o chamado',story:'Deus chamou Moisés quando ele cuidava do rebanho no deserto.',items:['Rebanho','Deserto','Sarça']},
+    {title:'Êxodo — A travessia',reference:'Êxodo 14',theme:'coastal',type:'collect',count:4,mission:'Siga as marcas da travessia',story:'Deus abriu o caminho e o povo atravessou em terra seca.',items:['Caminho','Povo','Travessia','Gratidão']},
+    {title:'Josué — O rio Jordão',reference:'Josué 3–4',theme:'river',type:'collect',count:4,mission:'Encontre as pedras memoriais',story:'O povo atravessou o Jordão e levantou pedras como memorial.',items:['Pedra 1','Pedra 2','Pedra 3','Pedra 4']},
+    {title:'Jericó — A grande marcha',reference:'Josué 6',theme:'jericho',type:'laps',count:13,mission:'Contorne Jericó: seis dias e depois sete voltas',story:'Nos seis primeiros dias, o povo deu uma volta diária. No sétimo dia, deu sete voltas ao redor da cidade.',items:[]},
+    {title:'Jesus — O nascimento',reference:'Lucas 2',theme:'village',type:'collect',count:3,mission:'Explore Belém',story:'Jesus nasceu em Belém. Pastores ouviram a boa notícia e foram vê-lo.',items:['Belém','Pastores','Manjedoura']},
+    {title:'Jesus — O batismo',reference:'Mateus 3',theme:'river',type:'collect',count:3,mission:'Siga o caminho até o Jordão',story:'Jesus foi batizado por João Batista no rio Jordão.',items:['Rio','João Batista','Batismo']},
+    {title:'Jesus — O chamado',reference:'Marcos 1',theme:'coastal',type:'collect',count:4,mission:'Encontre os primeiros discípulos',story:'À beira do mar, Jesus chamou pescadores para segui-lo.',items:['André','Simão','Tiago','João']},
+    {title:'Jesus — O sermão do monte',reference:'Mateus 5–7',theme:'forest',type:'collect',count:4,mission:'Reflita sobre os ensinamentos',story:'Jesus ensinou as bem-aventuranças e o caminho do Reino de Deus.',items:['Humildade','Paz','Misericórdia','Justiça']},
+    {title:'Jesus — Pães e peixes',reference:'João 6',theme:'forest',type:'collect',count:5,mission:'Encontre os símbolos da multiplicação',story:'Jesus alimentou a multidão a partir de cinco pães e dois peixes.',items:['Pão 1','Pão 2','Pão 3','Pão 4','Pão 5']},
+    {title:'Jesus — A tempestade',reference:'Marcos 4',theme:'coastal',type:'collect',count:3,mission:'Relembre a travessia e a fé',story:'Jesus acalmou o vento e o mar, e perguntou aos discípulos sobre a fé.',items:['Barco','Vento','Calmaria']},
+    {title:'Jesus — A ressurreição',reference:'Lucas 24',theme:'village',type:'collect',count:4,mission:'Siga os sinais do túmulo vazio',story:'As mulheres encontraram o túmulo vazio e ouviram a notícia da ressurreição.',items:['Jardim','Pedra','Túmulo','Boa notícia']},
+    {title:'Pentecostes — A promessa',reference:'Atos 2',theme:'village',type:'collect',count:4,mission:'Descubra a igreja nascente',story:'No Pentecostes, os discípulos receberam o Espírito Santo.',items:['Encontro','Oração','Coragem','Testemunho']},
+    {title:'Paulo — O caminho de Damasco',reference:'Atos 9',theme:'desert',type:'collect',count:4,mission:'Acompanhe a mudança de Saulo',story:'Saulo encontrou Jesus no caminho de Damasco e sua vida mudou.',items:['Caminho','Luz','Ananias','Novo começo']},
+    {title:'Paulo — Missões',reference:'Atos 13–20',theme:'village',type:'collect',count:5,mission:'Visite comunidades da missão',story:'Paulo anunciou o evangelho e ajudou na formação de igrejas.',items:['Antioquia','Chipre','Listra','Filipos','Éfeso']},
+    {title:'Paulo — A viagem a Roma',reference:'Atos 27–28',theme:'coastal',type:'collect',count:5,mission:'Conclua a última travessia',story:'Paulo enfrentou um naufrágio e chegou a Roma, onde continuou anunciando o evangelho.',items:['Embarque','Tempestade','Ilha','Viagem','Roma']}
+  ],
+  questions: [
+    ['Quem construiu a arca?',['Moisés','Noé','Davi','Paulo'],1],
+    ['Como os animais chegaram à arca, segundo Gênesis 7?',['Noé precisou caçá-los','Vieram até Noé','Foram comprados','Vieram de navio'],1],
+    ['Qual sinal Deus deu depois do dilúvio?',['O arco nas nuvens','Uma torre','Uma espada','Uma coroa'],0],
+    ['Quem recebeu a promessa de uma grande nação?',['Saul','Abraão','Pilatos','Jonas'],1],
+    ['Quem foi vendido pelos próprios irmãos?',['José','Pedro','Josué','Elias'],0],
+    ['Onde Moisés viu a sarça ardente?',['Em Roma','No deserto','Dentro da arca','Em Jericó'],1],
+    ['Quem guiou Israel na travessia do mar?',['Paulo','Noé','Moisés','Salomão'],2],
+    ['Qual rio Israel atravessou com Josué?',['Nilo','Jordão','Eufrates','Tigre'],1],
+    ['Quantas voltas o povo deu ao redor de Jericó no sétimo dia?',['Uma','Três','Sete','Doze'],2],
+    ['Em qual cidade Jesus nasceu?',['Belém','Jericó','Roma','Éfeso'],0],
+    ['Quem batizou Jesus?',['Pedro','João Batista','Paulo','Tiago'],1],
+    ['Que profissão tinham alguns dos primeiros discípulos?',['Pescadores','Soldados','Ferreiros','Escribas'],0],
+    ['Onde Jesus ensinou as bem-aventuranças?',['Num monte','Num barco','Num palácio','Numa prisão'],0],
+    ['O que Jesus multiplicou para alimentar a multidão?',['Pães e peixes','Uvas e azeite','Trigo e água','Mel e leite'],0],
+    ['O que Jesus fez durante uma tempestade no mar?',['Acalmou o vento e o mar','Abandonou o barco','Voltou à praia','Chamou soldados'],0],
+    ['O que os discípulos descobriram no terceiro dia?',['O túmulo vazio','Um palácio','Uma arca','Um pergaminho'],0],
+    ['Em qual livro está o relato do Pentecostes?',['Atos','Gênesis','Êxodo','Salmos'],0],
+    ['Para qual cidade Saulo estava indo quando encontrou Jesus?',['Damasco','Belém','Jericó','Nazaré'],0],
+    ['Quem acompanhou Paulo em parte de suas viagens?',['Barnabé','Golias','Faraó','Noé'],0],
+    ['Para qual cidade Paulo foi levado como prisioneiro?',['Roma','Belém','Jericó','Nínive'],0]
+  ]
+});

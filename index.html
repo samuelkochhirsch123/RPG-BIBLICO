@@ -1,52 +1,119 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Heróis da Fé — Jornada Bíblica</title><style>
-*{box-sizing:border-box}html,body{margin:0;background:#0d1d1a;color:#fff;font-family:system-ui,Arial;overflow:hidden}button{font:inherit;cursor:pointer}#game{position:fixed;inset:0}canvas{width:100%;height:100%;display:block;touch-action:none;image-rendering:pixelated}.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 15px;background:linear-gradient(#102c29f5,#102c2900);pointer-events:none}.hud button{pointer-events:auto;background:#25483dcc;color:#fff;border:1px solid #ffffff55;border-radius:9px;padding:8px}.brand small{display:block;color:#f4cb84;letter-spacing:2px;font-size:10px}.brand strong{font-size:15px}.stats{display:flex;gap:8px;align-items:center;font-weight:800;font-size:13px}.stats span{padding:6px 8px;background:#143b35c9;border-radius:8px}.mission{position:absolute;top:70px;left:50%;transform:translateX(-50%);max-width:90%;background:#12372de8;padding:9px 16px;border:1px solid #b7b28c88;border-radius:12px;text-align:center;font-size:13px}.controls{position:absolute;bottom:18px;left:20px;right:20px;display:flex;justify-content:space-between;align-items:end;pointer-events:none}.controls>*{pointer-events:auto}.joy{width:116px;height:116px;border-radius:50%;border:2px solid #fff8;background:#d2e6d62a;position:relative;touch-action:none}.knob{position:absolute;width:46px;height:46px;border-radius:50%;left:33px;top:33px;background:#f7f2d7a8;border:2px solid #fff8;pointer-events:none}.right{display:flex;align-items:end;gap:12px}.action{width:78px;height:78px;border-radius:50%;background:#9d6b35d9;color:white;border:2px solid #ffdfa0;font-size:12px;font-weight:900}.run{width:60px;height:60px;border-radius:50%;background:#315b55d9;color:white;border:2px solid #c5ddd4;font-size:11px;font-weight:800}.overlay{position:absolute;inset:0;background:#081b1ae6;display:flex;align-items:center;justify-content:center;padding:20px;z-index:5}.overlay[hidden]{display:none}.panel{background:linear-gradient(155deg,#2a4b3c,#162e2b);border:1px solid #c4ad7a8c;border-radius:20px;max-width:560px;width:100%;padding:24px;box-shadow:0 25px 80px #0008;max-height:94vh;overflow:auto}.panel h1{font-size:26px;margin:6px 0;color:#f7d38c}.panel p{line-height:1.5;color:#e3e9df}.panel small{color:#e9ca88}.primary{border:0;border-radius:12px;background:#f2c77e;color:#233527;padding:13px 20px;font-weight:900;width:100%;margin-top:12px}.skins{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:14px 0}.skin{border:1px solid #7fa78f;background:#224b41;color:#fff;border-radius:10px;padding:10px 3px;font-size:12px}.skin.active{border:2px solid #f5cc83;background:#3f7254}.avatar{display:block;width:32px;height:44px;margin:auto auto 7px;image-rendering:pixelated}.answers{display:grid;gap:9px}.answers button{padding:13px;background:#2c5847;color:white;border:1px solid #8cb69c;border-radius:11px;text-align:left}.clock{font-size:23px;font-weight:900;color:#f6d58c}.footer{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-size:10px;color:#fff8;pointer-events:none}@media(max-width:540px){.hud{padding:8px}.brand strong{font-size:12px}.stats{gap:3px;font-size:11px}.stats span{padding:4px}.mission{top:57px;font-size:11px}.controls{left:12px;right:12px;bottom:20px}.panel{padding:18px}.panel h1{font-size:21px}}
-</style></head><body><div id="game"><canvas id="canvas"></canvas><div class="hud"><div class="brand"><small>HERÓIS DA FÉ</small><strong id="chapter">JORNADA BÍBLICA</strong></div><div class="stats"><span id="life">♥ ♥ ♥</span><span id="points">✦ 0</span><span id="stage">1/20</span><button id="menu">☰</button></div></div><div class="mission" id="mission">Prepare a arca.</div><div class="controls"><div id="joy" class="joy"><div id="knob" class="knob"></div></div><div class="right"><button id="run" class="run">CORRER</button><button id="action" class="action">AÇÃO</button></div></div><div class="footer">WASD / setas · E para interagir · Shift para correr</div><div class="overlay" id="overlay"><div class="panel"><small>RPG ORIGINAL EM PIXEL ART</small><h1 id="panelTitle">Heróis da Fé</h1><p id="panelText">Uma jornada por 20 episódios bíblicos, do Antigo Testamento às viagens de Paulo. Explore, cumpra missões e responda às perguntas.</p><div id="skinWrap"><small>ESCOLHA SEU PERSONAGEM</small><div class="skins" id="skins"></div></div><button class="primary" id="play">COMEÇAR AVENTURA</button></div></div><div class="overlay" id="quiz" hidden><div class="panel"><small>DESAFIO BÍBLICO · JOGO PAUSADO</small><h1>Hora da pergunta!</h1><div class="clock" id="clock">01:00</div><p id="question"></p><div class="answers" id="answers"></div></div></div></div><script>
-(()=>{'use strict';const $=id=>document.getElementById(id),canvas=$('canvas'),ctx=canvas.getContext('2d');const W=1280,H=960,TAU=Math.PI*2;let player={x:640,y:740},skin='homem',direction='down',walking=false,walkTime=0,hearts=3,points=0,level=0,task=0,playing=false,quizOpen=false,questionAt=60,quizSec=60,quizTimer=null,gameSec=0,walked=0,lap=0,lapAngle=null,lapTotal=0,keys={},stick={x:0,y:0},sprinting=false,prev=0,request=0,interval=null,markers=[],trees=[],seeds=[],cam={x:0,y:0};
-const levels=[
-['Noé — Preparando a arca','Gênesis 6–7','forest','prepare',3,'Ajude Noé: leve provisões à arca. Os animais chegarão por orientação de Deus.'],
-['Noé — A entrada dos animais','Gênesis 7:8–9','forest','arrive',4,'Organize a chegada dos animais, que vêm até a arca.'],
-['Noé — O sinal da aliança','Gênesis 8–9','forest','collect',3,'Explore o novo começo e descubra os sinais da aliança.'],
-['Abraão — Uma promessa','Gênesis 12','desert','collect',3,'Percorra a jornada de Abraão e encontre marcos da promessa.'],
-['José — Sonhos e fidelidade','Gênesis 37–45','desert','collect',4,'Reúna os símbolos da história de José.'],
-['Moisés — O chamado','Êxodo 3','desert','collect',3,'Siga as marcas do caminho até a sarça ardente.'],
-['Êxodo — A travessia','Êxodo 14','sea','collect',4,'Siga os marcos da travessia pelo caminho aberto.'],
-['Josué — Entrada na terra','Josué 3–4','forest','collect',4,'Encontre as pedras memoriais junto ao Jordão.'],
-['Jericó — As sete voltas','Josué 6','jericho','laps',7,'Contorne Jericó: seis voltas iniciais e sete voltas no sétimo dia.'],
-['Jesus — O nascimento','Lucas 2','village','collect',3,'Visite Belém e encontre os sinais do nascimento de Jesus.'],
-['Jesus — O batismo','Mateus 3','river','collect',3,'Siga o caminho até o Jordão.'],
-['Jesus — O chamado dos discípulos','Marcos 1','sea','collect',4,'Percorra a margem do lago e encontre os discípulos.'],
-['Jesus — O sermão do monte','Mateus 5–7','forest','collect',4,'Encontre ensinamentos sobre o Reino de Deus.'],
-['Jesus — A multiplicação','João 6','forest','collect',5,'Reúna os cinco pães e dois peixes simbolizados nos marcos.'],
-['Jesus — A tempestade','Marcos 4','sea','collect',3,'Atravesse o cenário e recorde a fé dos discípulos.'],
-['Jesus — Ressurreição','Lucas 24','village','collect',4,'Siga as pistas até o túmulo vazio.'],
-['Pentecostes','Atos 2','village','collect',4,'Encontre os marcos do começo da igreja.'],
-['Paulo — Damasco','Atos 9','desert','collect',4,'Acompanhe a transformação de Saulo no caminho de Damasco.'],
-['Paulo — Viagens missionárias','Atos 13–20','village','collect',5,'Visite as comunidades e acompanhe a missão de Paulo.'],
-['Paulo — A caminho de Roma','Atos 27–28','sea','collect',5,'Atravesse a última jornada e conclua a aventura.']
-];
-const quizzes=[
-['Quem construiu a arca?',['Moisés','Noé','Davi','Paulo'],1],['Segundo Gênesis 7, como os animais chegaram à arca?',['Noé precisou caçá-los','Vieram até Noé','Foram vendidos','Vieram de barco'],1],['Qual sinal Deus deu após o dilúvio?',['Arco-íris','Coluna de fogo','Estrela','Trombeta'],0],['Quem recebeu a promessa de uma grande nação?',['Saul','Abraão','Pilatos','Jonas'],1],['Quem foi vendido pelos próprios irmãos?',['José','Pedro','Josué','Elias'],0],['Onde Moisés viu Deus falar por meio de uma sarça?',['No mar','No deserto','Em Roma','Em Jericó'],1],['Quem conduziu Israel na travessia do mar?',['Paulo','Noé','Moisés','Salomão'],2],['Qual rio Israel atravessou sob a liderança de Josué?',['Nilo','Jordão','Eufrates','Tigre'],1],['Quantas voltas foram dadas ao redor de Jericó no sétimo dia?',['Uma','Três','Sete','Doze'],2],['Em qual cidade Jesus nasceu?',['Belém','Jericó','Roma','Éfeso'],0],['Quem batizou Jesus?',['Pedro','João Batista','Paulo','Tiago'],1],['Qual profissão tinham alguns dos primeiros discípulos?',['Pescadores','Soldados','Ferreiros','Pastores'],0],['Onde Jesus ensinou as bem-aventuranças?',['Num monte','Num navio','No palácio','Na prisão'],0],['O que Jesus multiplicou para alimentar a multidão?',['Pães e peixes','Uvas e azeite','Trigo e água','Mel e leite'],0],['O que Jesus fez durante a tempestade no mar?',['Acalmou o vento e o mar','Abandonou o barco','Voltou à praia','Chamou soldados'],0],['O que os discípulos encontraram no terceiro dia?',['O túmulo vazio','Um palácio','Uma arca','Um pergaminho'],0],['Em qual livro é relatado o Pentecostes?',['Atos','Gênesis','Êxodo','Salmos'],0],['Para qual cidade Saulo estava indo quando encontrou Jesus?',['Damasco','Belém','Jericó','Nazaré'],0],['Quem acompanhou Paulo em parte de suas viagens?',['Barnabé','Golias','Faraó','Noé'],0],['Para qual cidade Paulo foi levado como prisioneiro?',['Roma','Belém','Jericó','Nínive'],0]
-];
-const colors={homem:['#dfab80','#47352b','#3977a3','#304764'],mulher:['#c88c67','#553a32','#ad5c87','#4d456d'],menino:['#e6b28d','#6a482c','#d78a42','#3d6d76'],menina:['#dba078','#49313b','#9167b8','#5968a0']};function rect(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(Math.round(x),Math.round(y),w,h)}function shadow(x,y,rx,ry){ctx.fillStyle='#172b2780';ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,TAU);ctx.fill()}function sprite(x,y,who,frame,dir){const [face,hair,shirt,pants]=colors[who]||colors.homem,child=who==='menino'||who==='menina';ctx.save();ctx.translate(Math.round(x),Math.round(y));ctx.scale(child?1.65:1.9,child?1.65:1.9);shadow(1,8,10,4);let a=frame?3:-3;rect(-8,-2+a,7,11,pants);rect(1,-2-a,7,11,pants);rect(-9,7+a,8,4,'#382c29');rect(1,7-a,8,4,'#382c29');rect(-10,-19,20,19,shirt);rect(-14,-16-a,4,13,face);rect(10,-16+a,4,13,face);rect(-9,-34,18,16,face);rect(-10,-36,20,7,hair);if(who==='mulher'||who==='menina'){rect(-12,-33,5,17,hair);rect(7,-33,5,17,hair)}if(dir!=='up'){rect(-5,-27,3,3,'#2d2b28');rect(3,-27,3,3,'#2d2b28')}else rect(-7,-31,14,5,hair);rect(-10,-19,20,2,'#ffffff33');ctx.restore()}
-function seedRandom(n){return ((Math.sin(n*124.221+level*81.2)*43758.5453)%1+1)%1}function createWorld(){trees=[];seeds=[];for(let i=0;i<115;i++){let x=35+seedRandom(i+1)*1210,y=40+seedRandom(i+200)*860;if(Math.hypot(x-640,y-740)<140||Math.hypot(x-640,y-410)<220)continue;trees.push({x,y,s:.8+seedRandom(i+400)*.65})}for(let i=0;i<320;i++)seeds.push([seedRandom(i+900)*W,seedRandom(i+1400)*H,seedRandom(i+1800)]);markers=[];let count=levels[level][4];for(let i=0;i<count;i++){const angle=(i/count)*TAU+.25;markers.push({x:640+Math.cos(angle)*340,y:455+Math.sin(angle)*255,done:false})}player={x:640,y:740};task=0;lap=0;lapAngle=null;lapTotal=0;gameSec=0;questionAt=60;}
-function tileGround(theme){let palette=theme==='desert'?['#c5ad78','#cbb784','#bfa772','#d2ba87']:theme==='sea'?['#9ab6a2','#a2c0aa','#8dad9a','#a9c6b1']:theme==='village'?['#a6a87b','#b2b487','#a3a678','#b7b48b']:theme==='jericho'?['#c6b384','#bda875','#d1bc8b','#c1ad7d']:['#81a76d','#86ac71','#7ba168','#8db074'];for(let y=0;y<H;y+=32)for(let x=0;x<W;x+=32){let n=((x/32*13+y/32*31+level*17)%4);rect(x,y,32,32,palette[n]);if(n===2){rect(x+6,y+10,3,7,theme==='desert'?'#a48f61':'#5e8d58');rect(x+11,y+7,3,7,theme==='desert'?'#b49c6c':'#638e58')}}}
-function tree(t,theme){const {x,y,s}=t;ctx.save();ctx.translate(x,y);ctx.scale(s,s);shadow(7,8,27,11);rect(-6,-40,12,45,'#745139');if(theme==='desert'||theme==='jericho'){rect(-24,-70,48,32,'#6c8151');rect(-31,-56,62,20,'#82975c');rect(-16,-85,33,20,'#a1a46b')}else{rect(-26,-72,53,35,'#2b6343');rect(-33,-58,66,24,'#3b7b4b');rect(-21,-90,42,27,'#4a8d50');rect(-11,-96,24,12,'#6aa963')}ctx.restore()}
-function structure(theme){if(level<=2){shadow(660,455,180,55);rect(510,336,260,125,'#a77549');for(let y=350;y<460;y+=20)rect(520,y,240,4,'#d8a775');rect(490,317,300,22,'#593e2d');rect(530,300,260,18,'#694a32');rect(620,391,50,70,'#473326');rect(635,400,18,52,'#806147');text('ARCA',640,280,27,'#fff0bb')}else if(theme==='jericho'){shadow(640,430,180,140);rect(485,290,310,260,'#a58a63');rect(501,305,278,228,'#d2b27d');for(let x=490;x<800;x+=36){rect(x,283,25,27,'#b99a6d');rect(x,533,25,25,'#b99a6d')}for(let y=310;y<540;y+=36){rect(479,y,25,25,'#b99a6d');rect(778,y,25,25,'#b99a6d')}rect(605,490,70,67,'#674c36');text('JERICÓ',640,266,26,'#fff0bc')}else if(theme==='village'){for(let i=0;i<5;i++){let x=320+i*155,y=360+(i%2)*80;rect(x,y,110,95,'#cbb18a');rect(x-10,y-20,130,27,'#9c6950');rect(x+39,y+40,30,55,'#5b4639')}}else if(theme==='sea'||theme==='river'){rect(0,250,W,130,'#4d95a7');for(let x=0;x<W;x+=90)rect(x,300+(x%4)*10,45,4,'#b7d8d3');rect(540,245,190,140,'#c4b48b')}else{rect(560,345,170,95,'#9e7d58');rect(540,325,210,23,'#76583c');rect(620,375,42,65,'#544132')}}
-function text(t,x,y,size=16,color='#fff'){ctx.font=`bold ${size}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#1a2c25';ctx.fillText(t,x+2,y+2);ctx.fillStyle=color;ctx.fillText(t,x,y)}
-function render(){const cw=canvas.width,ch=canvas.height,scale=Math.max(cw/960,ch/720);ctx.save();ctx.fillStyle='#152e28';ctx.fillRect(0,0,cw,ch);ctx.translate(cw/2-player.x*scale,ch/2-player.y*scale);ctx.scale(scale,scale);let theme=levels[level][2];tileGround(theme);if(theme==='sea'||theme==='river'){rect(0,120,W,110,'#4a8ea1');for(let x=0;x<W;x+=70)rect(x+20,150,25,4,'#9bd0d1')}seeds.forEach(s=>{rect(s[0],s[1],s[2]>.75?4:2,3,s[2]>.75?'#e6d7a0':'#648d5a')});structure(theme);const objects=[...trees.filter(t=>theme!=='sea'&&theme!=='river').map(t=>({y:t.y,draw:()=>tree(t,theme)}))];if(level===1){for(let i=0;i<4;i++){const a=markers[i];objects.push({y:a.y,draw:()=>{if(!a.done){text(['OVELHAS','AVES','REBANHO','ANIMAIS'][i],a.x,a.y-32,14,'#ffe9b5');drawToken(a.x,a.y,'#f4d2a0')}}})}}else if(level===8){objects.push({y:580,draw:()=>text('DIA '+(Math.min(7,Math.floor(lap/1)+1))+' • VOLTAS '+lap+'/13',640,610,19,'#fff3cb')})}else markers.forEach((m,i)=>objects.push({y:m.y,draw:()=>{if(!m.done){drawToken(m.x,m.y,['#e2b86e','#8bc3c2','#e0a0a1'][i%3]);text('✦',m.x,m.y-20,22,'#fff3bd')}}}));objects.push({y:player.y,draw:()=>sprite(player.x,player.y,skin,walking?Math.floor(walkTime/180)%2:0,direction)});objects.sort((a,b)=>a.y-b.y).forEach(o=>o.draw());ctx.restore();let vignette=ctx.createRadialGradient(cw/2,ch/2,Math.min(cw,ch)*.1,cw/2,ch/2,Math.max(cw,ch)*.7);vignette.addColorStop(0,'#0000');vignette.addColorStop(1,'#071c1a66');ctx.fillStyle=vignette;ctx.fillRect(0,0,cw,ch)}
-function drawToken(x,y,col){shadow(x+5,y+16,17,7);rect(x-14,y-17,28,29,col);rect(x-10,y-22,20,7,'#fff1bc');rect(x-8,y-8,16,5,'#fff8d0')}
-function hud(){const l=levels[level];$('chapter').textContent=l[0];$('life').textContent='♥ '.repeat(hearts)+'♡ '.repeat(3-hearts);$('points').textContent='✦ '+points;$('stage').textContent=(level+1)+'/20';$('mission').textContent=level===8?'Jericó: '+lap+'/13 voltas — contorne a muralha':l[3]==='arrive'?'Receba os animais que chegam: '+task+'/'+l[4]:l[3]==='prepare'?'Leve provisões à arca: '+task+'/'+l[4]:'Marcos da missão: '+task+'/'+l[4]}
-function beginStage(){createWorld();playing=true;quizOpen=false;$('overlay').hidden=true;$('quiz').hidden=true;hud()}
-function showPanel(title,body,button){playing=false;clearInterval(quizTimer);quizOpen=false;$('quiz').hidden=true;$('overlay').hidden=false;$('panelTitle').textContent=title;$('panelText').textContent=body;$('play').textContent=button;$('skinWrap').hidden=level>0}
-function finishStage(){points+=250;playing=false;let last=level===19;if(last){showPanel('JORNADA CONCLUÍDA!','Você percorreu os 20 episódios! Pontuação: '+points+'. Esta é uma adaptação lúdica baseada nas referências bíblicas de cada fase.','JOGAR NOVAMENTE');level=0;hearts=3}else{level++;let l=levels[level];showPanel('FASE CONCLUÍDA!','Próxima: '+l[0]+' ('+l[1]+'). '+l[5],'CONTINUAR PARA A FASE '+(level+1))}hud()}
-function interact(){if(!playing||quizOpen)return;if(level===8){return}let m=markers.find(m=>!m.done&&Math.hypot(player.x-m.x,player.y-m.y)<95);if(!m)return;m.done=true;task++;points+=50;hud();if(task>=levels[level][4])finishStage()}
-function update(dt){if(!playing||quizOpen)return;let dx=stick.x+(keys.right?1:0)-(keys.left?1:0),dy=stick.y+(keys.down?1:0)-(keys.up?1:0);let len=Math.hypot(dx,dy);if(len>1){dx/=len;dy/=len}walking=len>.12;if(walking){walkTime+=dt;if(Math.abs(dx)>Math.abs(dy))direction=dx>0?'right':'left';else direction=dy>0?'down':'up'}let speed=(sprinting||keys.sprint?270:175)*dt/1000;player.x=Math.max(25,Math.min(W-25,player.x+dx*speed));player.y=Math.max(25,Math.min(H-25,player.y+dy*speed));if(level===8){let a=Math.atan2(player.y-420,player.x-640),r=Math.hypot(player.x-640,player.y-420);if(r>210&&r<450&&walking){if(lapAngle!==null){let d=a-lapAngle;while(d>Math.PI)d-=TAU;while(d< -Math.PI)d+=TAU;if(Math.abs(d)<.24&&d>0)lapTotal+=d}lapAngle=a;if(lapTotal>=TAU){lapTotal-=TAU;lap++;points+=50;hud();if(lap>=13){finishStage();return}}}else lapAngle=null}hud()}
-function openQuiz(){if(!playing||quizOpen)return;quizOpen=true;quizSec=60;$('quiz').hidden=false;let q=quizzes[level];$('question').textContent=q[0];$('answers').replaceChildren();q[1].forEach((a,i)=>{let b=document.createElement('button');b.textContent=String.fromCharCode(65+i)+') '+a;b.onclick=()=>answer(i===q[2]);$('answers').append(b)});$('clock').textContent='01:00';clearInterval(quizTimer);quizTimer=setInterval(()=>{quizSec--;$('clock').textContent='00:'+String(Math.max(0,quizSec)).padStart(2,'0');if(quizSec<=0)answer(false)},1000)}
-function answer(correct){if(!quizOpen)return;clearInterval(quizTimer);quizOpen=false;$('quiz').hidden=true;questionAt=gameSec+60;if(correct)points+=100;else{hearts--;if(hearts<=0){showPanel('SEM CORAÇÕES','Você pode tentar novamente a fase '+(level+1)+'.','TENTAR NOVAMENTE');hearts=3}}hud()}
-function resize(){let d=Math.min(window.devicePixelRatio||1,1.6);canvas.width=Math.round(innerWidth*d);canvas.height=Math.round(innerHeight*d)}window.addEventListener('resize',resize);resize();function frame(t){let dt=Math.min(t-prev||16,40);prev=t;update(dt);render();request=requestAnimationFrame(frame)}request=requestAnimationFrame(frame);
-interval=setInterval(()=>{if(!playing||quizOpen)return;gameSec++;if(gameSec>=questionAt)openQuiz()},1000);
-$('play').onclick=()=>{if($('play').textContent==='RETOMAR AVENTURA'){playing=true;$('overlay').hidden=true;return}beginStage()};$('action').onclick=interact;$('menu').onclick=()=>{if(quizOpen)return;showPanel('AVENTURA PAUSADA',levels[level][5]+' Referência: '+levels[level][1]+'.','RETOMAR AVENTURA')};
-for(let k of Object.keys(colors)){let b=document.createElement('button');b.className='skin'+(k===skin?' active':'');b.innerHTML='<canvas class="avatar" width="32" height="44"></canvas>'+k[0].toUpperCase()+k.slice(1);b.onclick=()=>{skin=k;document.querySelectorAll('.skin').forEach(x=>x.classList.toggle('active',x===b))};$('skins').append(b);let sc=b.querySelector('canvas'),g=sc.getContext('2d'),co=colors[k];g.imageSmoothingEnabled=false;g.fillStyle=co[3];g.fillRect(7,29,7,14);g.fillRect(18,29,7,14);g.fillStyle=co[2];g.fillRect(5,16,22,15);g.fillStyle=co[0];g.fillRect(8,4,16,14);g.fillStyle=co[1];g.fillRect(7,2,18,6);if(k==='mulher'||k==='menina'){g.fillRect(5,5,5,16);g.fillRect(22,5,5,16)}g.fillStyle='#272521';g.fillRect(11,11,2,2);g.fillRect(20,11,2,2)}
-const mapping={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',W:'up',s:'down',S:'down',a:'left',A:'left',d:'right',D:'right',Shift:'sprint'};addEventListener('keydown',e=>{if(mapping[e.key]){keys[mapping[e.key]]=true;e.preventDefault()}if(e.key==='e'||e.key==='E')interact()});addEventListener('keyup',e=>{if(mapping[e.key])keys[mapping[e.key]]=false});addEventListener('blur',()=>{keys={};stick={x:0,y:0};sprinting=false;$('knob').style.transform='translate(0,0)'});const joy=$('joy'),knob=$('knob');let pid=null;function joyMove(e){let r=joy.getBoundingClientRect(),x=(e.clientX-r.left-r.width/2)/(r.width*.3),y=(e.clientY-r.top-r.height/2)/(r.height*.3),m=Math.max(1,Math.hypot(x,y));stick={x:x/m,y:y/m};knob.style.transform=`translate(${stick.x*34}px,${stick.y*34}px)`}joy.onpointerdown=e=>{e.preventDefault();pid=e.pointerId;joy.setPointerCapture(pid);joyMove(e)};joy.onpointermove=e=>{if(e.pointerId===pid)joyMove(e)};function joyEnd(e){if(e.pointerId!==pid)return;pid=null;stick={x:0,y:0};knob.style.transform='translate(0,0)'}['pointerup','pointercancel','lostpointercapture'].forEach(k=>joy.addEventListener(k,joyEnd));$('run').onpointerdown=e=>{sprinting=true;$('run').setPointerCapture(e.pointerId)};['pointerup','pointercancel','lostpointercapture'].forEach(k=>$('run').addEventListener(k,()=>sprinting=false));createWorld();hud();
-})();
-</script></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#10251e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="description" content="Heróis da Fé: RPG bíblico original em pixel art, com 20 fases e perguntas bíblicas.">
+  <title>Heróis da Fé — Jornada Bíblica</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icone-192.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script defer src="js/data.js"></script>
+  <script defer src="js/art.js"></script>
+  <script defer src="js/game.js"></script>
+</head>
+<body>
+<div id="app" role="application" aria-label="Jogo Heróis da Fé">
+  <canvas id="world" aria-label="Mapa do jogo em pixel art"></canvas>
+  <div class="world-shade" aria-hidden="true"></div>
+  <header id="hud" class="hud">
+    <div class="logo">
+      <span class="eyebrow">HERÓIS DA FÉ</span>
+      <strong id="hudChapter">A ARCA DE NOÉ</strong>
+    </div>
+    <div class="stats" aria-live="polite">
+      <span id="hudHearts" class="stat hearts" title="Vidas">♥ ♥ ♥</span>
+      <span id="hudPoints" class="stat score" title="Pontos">✦ 0</span>
+      <span id="hudLevel" class="stat level">1/20</span>
+    </div>
+    <div class="header-actions">
+      <button id="fullscreenBtn" type="button" class="icon-btn" aria-label="Tela cheia e girar na horizontal" title="Tela cheia / horizontal">⛶</button>
+      <button id="pauseBtn" type="button" class="icon-btn" aria-label="Pausar ou retomar" title="Pausar">Ⅱ</button>
+      <button id="exitBtn" type="button" class="icon-btn exit" aria-label="Sair da fase e voltar ao menu" title="Sair">✕</button>
+    </div>
+  </header>
+  <div id="missionHud" class="mission-hud" aria-live="polite">
+    <div class="mission-top"><span id="missionLabel">MISSÃO</span><span id="countLabel">0/3</span></div>
+    <div id="missionText">Prepare a arca de Noé</div>
+    <div class="mission-track"><span id="missionFill"></span></div>
+  </div>
+  <div id="interactionHint" class="interaction-hint" hidden>PRESSIONE AÇÃO</div>
+  <div id="statusToast" class="status-toast" hidden></div>
+  <div id="rotationTip" class="rotation-tip" hidden>↻ Gire o celular para jogar na horizontal <button id="dismissRotation" type="button" aria-label="Dispensar aviso">×</button></div>
+  <div id="touchControls" class="touch-controls" aria-label="Controles para celular">
+    <div id="joystick" class="joystick" role="group" aria-label="Analógico virtual">
+      <div class="joy-cross" aria-hidden="true">✦</div>
+      <div id="joystickKnob" class="joystick-knob"></div>
+    </div>
+    <div class="mobile-actions">
+      <button id="runBtn" class="game-button run-button" type="button"><span>≫</span><small>CORRER</small></button>
+      <button id="actionBtn" class="game-button action-button" type="button"><span>✦</span><small>AÇÃO</small></button>
+    </div>
+  </div>
+  <aside id="desktopInstructions" class="desktop-instructions" aria-label="Controles para computador">
+    <strong>COMO JOGAR</strong>
+    <ul>
+      <li><kbd>W A S D</kbd> ou <kbd>↑ ↓ ← →</kbd> — mover</li>
+      <li><kbd>E</kbd> ou <kbd>Espaço</kbd> — interagir</li>
+      <li><kbd>Shift</kbd> — correr</li>
+      <li><kbd>P</kbd> — pausar</li>
+      <li><kbd>F</kbd> — tela cheia</li>
+      <li><kbd>Esc</kbd> — sair da tela cheia</li>
+    </ul>
+  </aside>
+  <div id="mainOverlay" class="overlay" role="dialog" aria-modal="true">
+    <button id="panelFullscreenExit" class="full-exit" type="button" hidden>⤢ Sair da tela cheia</button>
+    <section class="panel">
+      <div class="panel-headline"><span class="panel-symbol">✦</span><span class="panel-kicker">AVENTURA BÍBLICA · PIXEL ART</span></div>
+      <h1 id="panelTitle">Heróis da Fé</h1>
+      <p id="panelDescription">Viaje por 20 episódios bíblicos, do Antigo Testamento às viagens de Paulo.</p>
+      <p id="panelReference" class="reference"></p>
+      <div id="skinSection">
+        <h2>ESCOLHA SEU PERSONAGEM</h2>
+        <div id="skinPicker" class="skin-picker">
+          <button class="skin-option active" type="button" data-skin="homem"><canvas width="32" height="48" aria-hidden="true"></canvas><span>Homem</span></button>
+          <button class="skin-option" type="button" data-skin="mulher"><canvas width="32" height="48" aria-hidden="true"></canvas><span>Mulher</span></button>
+          <button class="skin-option" type="button" data-skin="menino"><canvas width="32" height="48" aria-hidden="true"></canvas><span>Menino</span></button>
+          <button class="skin-option" type="button" data-skin="menina"><canvas width="32" height="48" aria-hidden="true"></canvas><span>Menina</span></button>
+        </div>
+      </div>
+      <div id="instructionsSection" class="how-to">
+        <h2>COMO JOGAR</h2>
+        <ul>
+          <li>Explore o mapa e aproxime-se dos objetivos.</li>
+          <li>Use <strong>Ação</strong> ou <strong>E</strong> para interagir.</li>
+          <li>A cada 1 minuto surge uma pergunta bíblica.</li>
+          <li>Você tem 60 segundos para responder; a aventura fica pausada.</li>
+          <li>Respostas erradas ou tempo esgotado custam um coração.</li>
+        </ul>
+      </div>
+      <div id="levelPicker" class="level-picker" hidden>
+        <h2>SELECIONE UMA FASE</h2>
+        <div id="levelGrid" class="level-grid"></div>
+      </div>
+      <button id="primaryBtn" class="primary-btn" type="button">COMEÇAR AVENTURA</button>
+      <div class="secondary-actions">
+        <button id="levelPickerBtn" type="button">Escolher fase</button>
+        <button id="mainMenuBtn" type="button" hidden>Voltar ao início</button>
+      </div>
+    </section>
+  </div>
+  <div id="quizOverlay" class="overlay quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="quizTitle" hidden>
+    <div class="quiz-exit-actions"><button id="quizFullscreenExit" class="full-exit" type="button" hidden>⤢ Sair da tela cheia</button><button id="quizQuit" class="full-exit" type="button">✕ Sair do jogo</button></div>
+    <section class="panel quiz-panel">
+      <span class="panel-kicker">DESAFIO BÍBLICO · AVENTURA PAUSADA</span>
+      <h1 id="quizTitle">Hora da pergunta!</h1>
+      <div class="quiz-time"><span>⏱</span> <strong id="quizClock">01:00</strong></div>
+      <div class="quiz-bar"><span id="quizBarFill"></span></div>
+      <p id="quizQuestion"></p>
+      <div id="quizAnswers" class="quiz-answers"></div>
+      <p class="quiz-foot">Você tem 60 segundos. Escolha uma resposta.</p>
+    </section>
+  </div>
+</div>
+</body>
+</html>
