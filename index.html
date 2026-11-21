@@ -7,15 +7,18 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="description" content="Heróis da Fé: RPG bíblico original em pixel art, com 20 fases e perguntas bíblicas.">
+  <meta name="description" content="Heróis da Fé: RPG bíblico original em pixel art, com 20 fases com aventuras, desafios e perguntas bíblicas.">
   <title>Heróis da Fé — Jornada Bíblica</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/icone-192.png">
-  <link rel="stylesheet" href="css/style.css?v=4.1">
-  <script defer src="js/data.js?v=4.1"></script>
-  <script defer src="js/adventures.js?v=4.1"></script>
-  <script defer src="js/art.js?v=4.1"></script>
-  <script defer src="js/game.js?v=4.1"></script>
+  <link rel="stylesheet" href="css/style.css?v=62">
+  <script defer src="js/data.js?v=62"></script>
+  <script defer src="js/adventures.js?v=62"></script>
+  <script defer src="js/art.js?v=62"></script>
+  <script defer src="js/physics.js?v=62"></script>
+  <script defer src="firebase-config.js?v=62"></script>
+  <script defer src="js/multiplayer.js?v=62"></script>
+  <script defer src="js/game.js?v=62"></script>
 </head>
 <body>
 <div id="app" role="application" aria-label="Jogo Heróis da Fé">
@@ -90,13 +93,15 @@
       <div id="instructionsSection" class="how-to">
         <h2>COMO JOGAR</h2>
         <ul>
-          <li>Explore o mapa, entre nas construções e encontre novas aventuras.</li>
+          <li>Explore o mapa, entre pela porta da arca e encontre novas aventuras.</li>
+          <li>Casas e muralhas são sólidas; árvores são atravessáveis. Água profunda só pela ponte ou passagem segura.</li>
           <li>Use <strong>Ação</strong> ou <strong>E</strong> para abrir portas, resolver desafios e acionar cenas.</li>
-          <li>A cada 1 minuto surge uma pergunta bíblica.</li>
+          <li>No modo individual, a cada 1 minuto surge uma pergunta bíblica diferente, com alternativas embaralhadas.</li>
           <li>Você tem 60 segundos para responder; a aventura fica pausada.</li>
-          <li>Respostas erradas ou tempo esgotado custam um coração.</li>
+          <li>Respostas erradas ou tempo esgotado custam um coração.</li><li>No modo Desafio, acerte a mira em movimento e conclua as sete voltas de Jericó com cronômetro.</li><li>Ao fim de cada desafio, leia a explicação bíblica antes de continuar.</li>
         </ul>
       </div>
+      <div class="challenge-preferences" id="difficultyPrefs"><label class="challenge-switch"><input id="challengeMode" type="checkbox"><span><strong>MODO DIFÍCIL</strong><small>Ative para jogar com 2 corações, mira rápida e menos tempo</small></span></label><p id="recordText" class="record-text">Seu melhor resultado aparecerá aqui.</p></div>
       <div id="levelPicker" class="level-picker" hidden>
         <h2>SELECIONE UMA FASE</h2>
         <div id="levelGrid" class="level-grid"></div>
@@ -104,9 +109,53 @@
       <button id="primaryBtn" class="primary-btn" type="button">COMEÇAR AVENTURA</button>
       <div class="secondary-actions">
         <button id="levelPickerBtn" type="button">Escolher fase</button>
+        <button id="onlineOpenBtn" type="button">Jogar online · até 4</button>
         <button id="mainMenuBtn" type="button" hidden>Voltar ao início</button>
       </div>
     </section>
+  </div>
+  <div id="onlineOverlay" class="overlay online-overlay" role="dialog" aria-modal="true" aria-labelledby="onlineTitle" hidden>
+    <section class="panel online-panel">
+      <div class="panel-headline"><span class="panel-symbol">✧</span><span class="panel-kicker">HERÓIS DA FÉ · MULTIPLAYER BETA</span></div>
+      <h1 id="onlineTitle">Jogar com amigos</h1>
+      <p id="onlineDescription">Crie uma sala ou entre com um código. Até quatro jogadores, com um líder para avançar as missões.</p>
+      <div id="onlineSetup">
+        <label class="online-label" for="onlineNick">Seu apelido</label>
+        <input id="onlineNick" type="text" maxlength="18" autocomplete="nickname" value="Jogador" placeholder="Seu apelido">
+        <label class="online-label" for="onlineCode">Código da sala (para entrar)</label>
+        <input id="onlineCode" type="text" maxlength="6" autocapitalize="characters" placeholder="EX.: ABC234" spellcheck="false">
+        <div class="online-action-row"><button id="onlineCreate" class="primary-btn" type="button">CRIAR SALA</button><button id="onlineJoin" class="primary-btn secondary" type="button">ENTRAR COM CÓDIGO</button></div>
+      </div>
+      <div id="onlineLobby" hidden>
+        <div class="online-code-wrap"><div><small>CÓDIGO DA SALA</small><strong id="onlineRoomCode">------</strong></div><button id="onlineCopy" type="button">Copiar código</button></div>
+        <h2>JOGADORES NA SALA <span id="onlinePlayerCount">1/4</span></h2>
+        <ul id="onlinePlayers" class="online-player-list" aria-live="polite"></ul>
+        <p class="online-help" id="onlineHint">Envie o código aos amigos. O líder inicia quando todos entrarem.</p>
+        <button id="onlineStart" type="button" class="primary-btn">INICIAR AVENTURA EM GRUPO</button>
+      </div>
+      <p id="onlineError" class="online-error" role="status" aria-live="polite"></p>
+      <button id="onlineBack" type="button" class="online-back">← Sair da sala / Voltar ao menu</button>
+    </section>
+  </div>
+  <div id="aimOverlay" class="overlay precision-overlay" role="dialog" aria-modal="true" aria-labelledby="aimTitle" hidden>
+    <section class="panel precision-panel">
+      <div class="precision-top"><span class="panel-kicker" id="aimKicker">DESAFIO DE HABILIDADE</span><button type="button" id="aimExit">✕ Voltar ao menu</button></div>
+      <h1 id="aimTitle">Aponte a mira</h1>
+      <p id="aimDescription">Observe a referência e alinhe a mira ao sinal luminoso.</p>
+      <div class="precision-stats"><span id="aimCount">SINAL 1 DE 3</span><span id="aimTime">00:25</span><span id="aimErrors">FALHAS 0/3</span></div>
+      <div id="aimBoard" class="aim-board" role="application" aria-label="Campo de mira: arraste o retículo e pressione observar">
+        <div class="aim-waterline" aria-hidden="true"></div>
+        <div id="aimTarget" class="aim-target" aria-hidden="true">✦</div>
+        <div id="aimReticle" class="aim-reticle" aria-hidden="true"><span></span></div>
+        <span class="aim-board-help">ARRASTE A MIRA ATÉ O SINAL ✦</span>
+      </div>
+      <button type="button" id="aimFire" class="primary-btn">OBSERVAR SINAL</button>
+      <p id="aimTip" class="aim-tip">Celular: arraste e toque em OBSERVAR. PC: mouse ou setas + espaço.</p>
+      <p id="aimLearning" class="aim-learning" hidden></p>
+    </section>
+  </div>
+  <div id="learnOverlay" class="overlay learn-overlay" role="dialog" aria-modal="true" hidden>
+    <section class="panel learn-panel"><span class="panel-kicker">APRENDA COM A BÍBLIA</span><h1 id="learnTitle">Você aprendeu!</h1><p id="learnExplanation"></p><p id="learnReference" class="reference"></p><button id="learnContinue" type="button" class="primary-btn">CONTINUAR JOGANDO</button></section>
   </div>
   <div id="quizOverlay" class="overlay quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="quizTitle" hidden>
     <div class="quiz-exit-actions"><button id="quizFullscreenExit" class="full-exit" type="button" hidden>⤢ Sair da tela cheia</button><button id="quizQuit" class="full-exit" type="button">✕ Sair do jogo</button></div>

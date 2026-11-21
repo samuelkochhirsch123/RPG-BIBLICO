@@ -1,7 +1,7 @@
 /* Canvas renderer: pixel-art assets drawn by us, not copyrighted game sprites. */
 window.RPGArt = (() => {
   const images = {};
-  const files = {heroes:'assets/personagens.png?v=4.1',tiles:'assets/terreno.png?v=4.1',animals:'assets/animais.png?v=4.1'};
+  const files = {heroes:'assets/personagens.png?v=61',tiles:'assets/terreno.png?v=61',animals:'assets/animais.png?v=61'};
   const themeIndex = {forest:0,desert:1,coastal:2,village:3,river:4,jericho:5};
   const skinIndex = {homem:0,mulher:1,menino:2,menina:3};
   const dirIndex = {down:0,left:1,right:2,up:3};
@@ -31,6 +31,7 @@ window.RPGArt = (() => {
       for(let x=0;x<1280;x+=100){rect(c,x+17,211,40,4,'#a5d9ce');rect(c,x+58,252,24,3,'#7bc5c3');}
       rect(c,590,165,100,135,'#beac7e');
       for(let y=171;y<289;y+=19)rect(c,598,y,84,4,'#d8c69b');
+      text(c,'PONTE',640,144,13,'#fff2ca');
     }
   }
   function tree(c,t,theme) {
@@ -42,7 +43,7 @@ window.RPGArt = (() => {
     c.restore();
   }
   function building(c,theme,level,game) {
-    if(level<=2){ // Noah's ark, unfinished stage, then animals arriving, then the new beginning.
+    if(level<=1){ // Noah's ark, unfinished stage, then animals arriving, then the new beginning.
       ellipse(c,646,469,173,54,'#233b3355');
       rect(c,497,361,290,106,'#8b5838');rect(c,515,337,257,115,'#ad794a');
       rect(c,498,344,291,16,'#593c29');rect(c,533,312,252,29,'#60412e');
@@ -53,7 +54,7 @@ window.RPGArt = (() => {
       rect(c,639,420,5,5,'#f1cf8b');
       rect(c,499,468,289,13,'#69472f');
       text(c,'A ARCA',643,277,23,'#ffdda5');
-      if(level===2){ // rainbow as covenant sign
+      if(level===1 && game?.adventure?.floodSeen){ // rainbow appears after the water challenge
         c.save();c.beginPath();c.arc(640,275,145,Math.PI,0);c.strokeStyle='#f2a28c';c.lineWidth=8;c.stroke();c.beginPath();c.arc(640,275,133,Math.PI,0);c.strokeStyle='#f4d185';c.stroke();c.beginPath();c.arc(640,275,121,Math.PI,0);c.strokeStyle='#9acb96';c.stroke();c.restore();
       }
     } else if(theme==='jericho') {
@@ -80,6 +81,26 @@ window.RPGArt = (() => {
     } else {
       rect(c,572,346,145,113,'#ae8861');rect(c,560,327,172,22,'#6a5039');rect(c,620,394,46,65,'#594433');
     }
+  }
+  // Caminho de marcha: visível antes das muralhas e estacas, nos oito pontos da rota.
+  function jerichoTrail(c,game){
+    const cx=640,cy=433,r=335;
+    c.save();
+    c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);
+    c.strokeStyle='#6f64445c';c.lineWidth=35;c.stroke();
+    c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);
+    c.strokeStyle='#f7e0a6c9';c.lineWidth=10;c.setLineDash([15,18]);c.stroke();
+    c.setLineDash([]);
+    // Estacas do percurso com números em ordem: ajudam a manter a direção no celular.
+    for(let i=0;i<8;i++){
+      const ang=Math.PI/2+i*Math.PI/4;
+      const x=cx+Math.cos(ang)*r,y=cy+Math.sin(ang)*r;
+      ellipse(c,x,y+7,17,6,'#433d2b88');
+      rect(c,x-8,y-19,16,25,'#8c673f');rect(c,x-6,y-24,12,10,'#ecd38e');
+      text(c,String(i+1),x,y-33,13,'#fff6cf');
+    }
+    // Pequena seta à saída: o jogador pode seguir tanto sentido horário como anti-horário.
+    c.restore();
   }
   function token(c,x,y,label,complete,t) {
     if(complete)return;
@@ -143,8 +164,21 @@ window.RPGArt = (() => {
     }
     const cX=g.player.x,cY=g.player.y;
     hero(c,cX,cY,g.skin,g.direction,g.pose);
+    for(const other of (g.remotePlayers||[])){
+      if(other.room!=='inside')continue;
+      hero(c,other.x,other.y,other.skin,other.dir,other.pose);
+      text(c,other.name,other.x,other.y-77,15,'#ffe2a0');
+    }
     // Direction hint at center of floor, near exit.
     text(c,g.level===0?'PREPARE OS DEPÓSITOS':'ORGANIZE OS COMPARTIMENTOS',640,185,20,'#fff2b3');
+  }
+  function drawFlood(c,g){
+    const t=g.animTime/1000;
+    rect(c,0,0,1280,960,'#3c8da6');
+    for(let y=45;y<960;y+=45)for(let x=0;x<1280;x+=145){rect(c,x+20*Math.sin(t+y*.02),y,85,5,'#95d3d1');rect(c,x+45*Math.sin(t*.5+x*.01),y+15,34,3,'#5eb0b4')}
+    // Elevated wooden deck in front of the ark; players can reach its observation window.
+    rect(c,555,480,170,475,'#89704b');for(let y=490;y<960;y+=23)rect(c,566,y,145,3,'#c5a679');
+    text(c,'OBSERVE OS SINAIS DO DILÚVIO',640,235,18,'#fff1c8');
   }
   function drawSea(c,g){
     const a=g.adventure,p=a.seaProgress||0,t=g.animTime/1000;
@@ -193,6 +227,50 @@ window.RPGArt = (() => {
     if(img.complete&&img.naturalWidth) c.drawImage(img,((dirIndex[dir]??0)*2+(pose?1:0))*32,(skinIndex[skin]??0)*48,32,48,Math.round(x-size*.33),Math.round(y-size*.86),Math.round(size*.67),size);
     else {rect(c,x-12,y-24,24,28,'#527ca3');rect(c,x-9,y-48,18,22,'#d4a27a');}
   }
+  // A Arca da Aliança em transporte: coberta, com varais visíveis.
+  // A procissão em Jericó tem sacerdotes com trombetas, carregadores e povo.
+  function npc(c,x,y,i=0,scale=1){
+    c.save();c.translate(Math.round(x),Math.round(y));c.scale(scale,scale);
+    ellipse(c,0,10,12,4,'#2b33265f');rect(c,-8,-2,7,13,'#433e35');rect(c,2,-2,7,13,'#433e35');
+    rect(c,-11,-23,22,22,['#a57957','#668f9b','#a27a81','#79916e','#a58b58'][i%5]);
+    rect(c,-8,-37,16,15,['#c69168','#d9ac80','#ba795d'][i%3]);rect(c,-9,-40,18,6,'#544437');
+    c.restore();
+  }
+  function jerichoProcession(c,g){
+    const centerX=640,centerY=433,r=335;
+    const angle=Math.atan2(g.player.y-centerY,g.player.x-centerX);
+    const cw=g.lapDirection||1;
+    const pos=k=>({x:centerX+Math.cos(angle-cw*k*.105)*r,y:centerY+Math.sin(angle-cw*k*.105)*r});
+    // One set of priests with trumpets, levites carrying the covered Ark, and the people.
+    for(let i=0;i<6;i++){
+      const p=pos(i+1);npc(c,p.x,p.y,1,.82);
+      rect(c,p.x+9,p.y-33,14,3,'#d6b369');rect(c,p.x+20,p.y-37,4,9,'#e2c37f');
+    }
+    const mid=pos(7.3);ellipse(c,mid.x,mid.y+12,43,10,'#413b316b');
+    // Two long carrying poles, and a blue cloth hiding the sacred chest itself.
+    rect(c,mid.x-60,mid.y-11,120,8,'#916b45');rect(c,mid.x-57,mid.y+15,114,7,'#ba8d51');
+    rect(c,mid.x-31,mid.y-32,62,47,'#204870');rect(c,mid.x-26,mid.y-38,52,10,'#426f9f');
+    rect(c,mid.x-28,mid.y-9,56,7,'#375f86');rect(c,mid.x-26,mid.y+8,52,6,'#1a3956');
+    for(const k of [6.5,8.1]){const p=pos(k);npc(c,p.x,p.y,2,.9)}
+    for(let i=0;i<13;i++){const p=pos(i+9);npc(c,p.x,p.y,i,.75)}
+    text(c,'PROCISSÃO · ARCA COBERTA',mid.x,mid.y-61,12,'#fff2c5');
+  }
+  function seaCrowd(c,g){
+    if(g.level!==6)return;
+    const a=g.adventure,opened=a.seaOpened&&a.seaMarked;
+    for(let i=0;i<14;i++){
+      const row=Math.floor(i/3),col=i%3;
+      const cx=640+(col-1)*38+(row%2)*8;
+      const cy=opened?Math.min(750,g.player.y+100+row*26):720+row*36;
+      npc(c,cx,cy,i,.82);
+    }
+    text(c,'POVO DE ISRAEL',640,800,14,'#fff0b5');
+  }
+  function escortCrowd(c,g){
+    if(g.level!==5)return;const p=g.escort;
+    for(let i=0;i<7;i++){const x=p.x+(i%3-1)*30,y=p.y+Math.floor(i/3)*29;npc(c,x,y,i,.8)}
+    text(c,'FAMÍLIAS',p.x,p.y-54,14,'#fff1c7');
+  }
   function render(c,game,screen){
     const {width,height,dpr,zoom,cameraX,cameraY}=screen;
     c.setTransform(dpr,0,0,dpr,0,0);
@@ -211,19 +289,27 @@ window.RPGArt = (() => {
     for(const pebble of game.decals){ if(pebble.x<view.left-10||pebble.x>view.right+10||pebble.y<view.top-10||pebble.y>view.bottom+10)continue;
       rect(c,pebble.x,pebble.y,pebble.size,pebble.size>2?3:2,lev.theme==='desert'||lev.theme==='jericho'?'#b19a71':'#648d5c');
     }
+    
     if(game.level===6)drawSea(c,game);
     else building(c,lev.theme,game.level,game);
-    if(game.level===14)drawStorm(c,game);
+    if(lev.type==='laps')jerichoTrail(c,game);
+    if(game.level===12||game.level===19)drawStorm(c,game);
     const objects=[];
     if(lev.theme!=='coastal'&&lev.theme!=='river'&&lev.theme!=='jericho'){
       for(const tr of game.trees)if(tr.x>view.left-85&&tr.x<view.right+85&&tr.y>view.top-120&&tr.y<view.bottom+30)objects.push({y:tr.y,draw:()=>tree(c,tr,lev.theme)});
     }
+    if(lev.type==='laps')objects.push({y:game.player.y-3,draw:()=>jerichoProcession(c,game)});
+    if(game.level===6)objects.push({y:game.player.y-5,draw:()=>seaCrowd(c,game)});
+    if(game.level===5)objects.push({y:game.escort.y,draw:()=>escortCrowd(c,game)});
     if(lev.type==='arrive')for(const animalGroup of game.animals)objects.push({y:animalGroup.y,draw:()=>animal(c,animalGroup,game.animTime)});
-    else if(lev.type==='laps'){
-      for(let i=0;i<8;i++){const angle=i*Math.PI/4;const x=640+Math.cos(angle)*335,y=433+Math.sin(angle)*335;
-        objects.push({y,draw:()=>{ellipse(c,x,y+5,13,6,'#47392480');rect(c,x-9,y-19,18,25,'#a17e57');rect(c,x-6,y-23,12,7,'#d8b883');}});
-      }
-    } else for(const m of game.markers)objects.push({y:m.y,draw:()=>lev.type==='feed'?crowd(c,m,game.animTime):token(c,m.x,m.y,m.label,m.done,game.animTime)});
+    else if(lev.type!=='laps')for(const m of game.markers)objects.push({y:m.y,draw:()=>lev.type==='feed'?crowd(c,m,game.animTime):token(c,m.x,m.y,m.label,m.done,game.animTime)});
+    for(const other of (game.remotePlayers||[])){
+      if(other.room==='inside')continue;
+      objects.push({y:other.y,draw:()=>{
+        hero(c,other.x,other.y,other.skin,other.dir,other.pose);
+        text(c,other.name,other.x,other.y-74,14,'#ffe4a0');
+      }});
+    }
     objects.push({y:game.player.y,draw:()=>hero(c,game.player.x,game.player.y,game.skin,game.direction,game.pose)});
     objects.sort((a,b)=>a.y-b.y).forEach(o=>o.draw());
     c.restore();

@@ -10,7 +10,8 @@ window.RPGAdventures = Object.freeze({
           {x:355,y:590,label:'Bois',kind:'bois',done:false},
           {x:925,y:590,label:'Cabras',kind:'cabras',done:false}],
     pensDone:0,penCooldown:0,boardingIndex:0,nextReadyAt:0,feedCooldown:0,
-    seaOpened:false,seaProgress:0,seaCrossed:false,
+    seaOpened:false,seaProgress:0,seaCrossed:false,seaMarked:false,seaDeadline:0,seaPenaltyAt:0,
+    floodSeen:false,jerichoHornDone:0,lapDeadline:0,lapMilestone:0,
     stormProgress:0,stormCleared:false,wallProgress:0,
     stageKind:stage.type
   }},
@@ -26,8 +27,7 @@ window.RPGAdventures = Object.freeze({
       if(g.complete>=4)return a.arkDoor;
       return g.animals[a.boardingIndex]||null;
     }
-    if(g.level===6)return a.seaOpened?{x:640,y:135}:{x:640,y:635};
-    if(g.level===14)return {x:640,y:535};
+    if(g.level===6)return a.seaOpened&&a.seaMarked?{x:640,y:135}:{x:640,y:635};
     return null;
   },
   isRoom(g){return g.adventure?.room==='inside'}

@@ -1,0 +1,46 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": "auth != null && $code.matches(/^[A-HJ-NP-Z2-9]{6}$/)",
+        ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() === auth.uid && newData.child('status').val() === 'lobby') || (data.exists() && data.child('hostUid').val() === auth.uid))",
+        "hostUid": {
+          ".validate": "newData.isString()"
+        },
+        "status": {
+          ".write": "auth != null && root.child('rooms').child($code).child('hostUid').val() === auth.uid",
+          ".validate": "newData.val() === 'lobby' || newData.val() === 'playing'"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($code).child('hostUid').exists() && (data.exists() || (root.child('rooms').child($code).child('status').val() === 'lobby' && root.child('rooms').child($code).child('players').numChildren() < 4))",
+            ".validate": "newData.hasChildren(['name','skin','x','y','dir','pose','room','updatedAt']) && newData.child('name').isString() && newData.child('name').val().length <= 18 && newData.child('skin').isString() && newData.child('x').isNumber() && newData.child('x').val() >= 20 && newData.child('x').val() <= 1260 && newData.child('y').isNumber() && newData.child('y').val() >= 40 && newData.child('y').val() <= 940 && newData.child('pose').isNumber() && newData.child('room').isString() && newData.child('updatedAt').isNumber()"
+          }
+        },
+        "state": {
+          ".write": "auth != null && root.child('rooms').child($code).child('hostUid').val() === auth.uid",
+          ".validate": "newData.hasChildren(['session','stage','mode','updatedAt']) && newData.child('stage').isNumber() && newData.child('stage').val() >= 0 && newData.child('stage').val() <= 19 && newData.child('updatedAt').isNumber()"
+        },
+        "commands": {
+          "$uid": {
+            ".write": "auth != null && root.child('rooms').child($code).child('players').child(auth.uid).exists() && ($uid === auth.uid || root.child('rooms').child($code).child('hostUid').val() === auth.uid)",
+            ".validate": "newData.hasChildren(['kind','sequence','at']) && newData.child('kind').val() === 'interact' && newData.child('sequence').isNumber() && newData.child('at').isNumber()"
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "profiles": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['unlocked','bestScore','skin','updatedAt']) && newData.child('unlocked').isNumber() && newData.child('unlocked').val() >= 0 && newData.child('unlocked').val() <= 19 && newData.child('bestScore').isNumber() && newData.child('bestScore').val() >= 0 && newData.child('skin').isString() && newData.child('updatedAt').isNumber()"
+      }
+    }
+  }
+}

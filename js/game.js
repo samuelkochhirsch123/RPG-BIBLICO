@@ -1,29 +1,29 @@
 /* Heróis da Fé: navegador, iPhone e Android. Sem bibliotecas externas. */
 (() => {
   'use strict';
-  const D=window.BibliaData, Art=window.RPGArt, Adv=window.RPGAdventures;
+  const D=window.BibliaData, Art=window.RPGArt, Adv=window.RPGAdventures, Physics=window.RPGPhysics, Online=window.RPGOnline;
   const $=id=>document.getElementById(id);
   const app=$('app'),canvas=$('world'),ctx=canvas.getContext('2d',{alpha:false});
   const PI2=Math.PI*2, WIDTH=1280,HEIGHT=960;
   const mobile=matchMedia('(pointer:coarse)').matches || ('ontouchstart' in window && innerWidth<1000);
-  const storeKey='heroisDaFe.unlock.v3';
-  function getUnlock(){try{return Math.max(0,Math.min(19,parseInt(localStorage.getItem(storeKey)||'0',10)||0))}catch{return 0}}
+  const storeKey='heroisDaFe.unlock.v6';const scoreKey='heroisDaFe.records.v6';
+  function getUnlock(){try{return Math.max(0,Math.min(19,parseInt(localStorage.getItem(storeKey)||localStorage.getItem('heroisDaFe.unlock.v3')||'0',10)||0))}catch{return 0}}
   function saveUnlock(value){try{localStorage.setItem(storeKey,String(value))}catch{}}
   const G={
-    state:'menu',level:0,selectedStage:0,unlocked:getUnlock(),skin:'homem',hearts:3,points:0,
+    state:'menu',level:0,selectedStage:0,unlocked:getUnlock(),skin:'homem',hearts:3,points:0,remotePlayers:[],
     player:{x:640,y:755},direction:'down',pose:0,walkMs:0,animTime:0,markers:[],animals:[],trees:[],decals:[],
     complete:0,laps:0,lapAngle:null,lapProgress:0,lapDirection:0,adventure:null,cinematic:null,
-    missionSeconds:0,nextQuestion:60,quizRemaining:60,keys:{},stick:{x:0,y:0},run:false,
+    missionSeconds:0,nextQuestion:60,questionDeck:[],lastQuestionText:'',blockedHintAt:-99,quizRemaining:60,quizLimit:60,quizPayload:null,skill:null,modeHard:false,penalties:0,stageLimit:220,lapClock:0,introPlayed:false,escort:{x:640,y:755,far:0},keys:{},stick:{x:0,y:0},run:false,
     getTarget(){
       const lvl=D.levels[this.level],ad=this.adventure;
       if(lvl.type==='laps')return null;
       const special=Adv.target(this);
       if(special)return special;
-      const candidates=lvl.type==='arrive'?this.animals.filter(a=>!a.entered && a.index===ad.boardingIndex):this.markers.filter(m=>!m.done);
+      const candidates=lvl.type==='arrive'?this.animals.filter(a=>!a.entered && a.index===ad.boardingIndex):(lvl.type==='feed'?this.markers.filter(m=>!m.done):[this.markers[this.complete]].filter(Boolean));
       return candidates.sort((a,b)=>Math.hypot(a.x-this.player.x,a.y-this.player.y)-Math.hypot(b.x-this.player.x,b.y-this.player.y))[0]||null;
     }
   };
-  let lastFrame=0,tinyToastUntil=0,rotationDismissed=false;
+  let lastFrame=0,tinyToastUntil=0,rotationDismissed=false,onlineSession=0,guestSession=0,guestQuizClock=0,guestWaiting=false;
   const view={width:innerWidth,height:innerHeight,dpr:1,zoom:1,cameraX:640,cameraY:700};
   const level=D.levels;
   const stopInput=()=>{G.keys={};G.stick={x:0,y:0};G.run=false;$('joystickKnob').style.transform='translate(0px,0px)';$('runBtn').classList.remove('pressed')};
@@ -31,18 +31,19 @@
   function makeWorld(){
     G.player={x:640,y:755};G.direction='down';G.walkMs=0;G.pose=0;
     G.complete=0;G.laps=0;G.lapAngle=null;G.lapProgress=0;G.lapDirection=0;
-    G.missionSeconds=0;G.nextQuestion=60;G.quizRemaining=60;G.animTime=0;G.cinematic=null;
-    G.markers=[];G.animals=[];G.trees=[];G.decals=[];
+    G.missionSeconds=0;G.nextQuestion=60;G.quizRemaining=60;G.animTime=0;G.cinematic=null;G.skill=null;G.penalties=0;G.stageLimit=level[G.level].limit||240;G.lapClock=0;G.escort={x:640,y:755,far:0};
+    G.markers=[];G.animals=[];G.trees=[];G.decals=[];G.questionDeck=[];G.blockedHintAt=-99;
     const stage=level[G.level];G.adventure=Adv.create(stage);
     if(stage.type==='arrive') {
       const kinds=['ovelhas','aves','bois','cabras'];
       const start=[[380,520],[515,860],[895,750],[915,490]];
       const ends=[[470,590],[567,625],[735,625],[826,590]];
       for(let i=0;i<4;i++)G.animals.push({kind:kinds[i],label:stage.items[i],index:i,x:start[i][0],y:start[i][1],goalX:ends[i][0],goalY:ends[i][1],ready:false,entered:false,boarding:false,boardTime:0,boardX:0,boardY:0});
-    } else if(!['laps','ark','sea','storm'].includes(stage.type)) {
+    } else if(!['laps','ark','sea'].includes(stage.type)) {
       for(let i=0;i<stage.count;i++){
         const a=(i/stage.count)*PI2+Math.PI/2;
-        G.markers.push({x:640+Math.cos(a)*350,y:440+Math.sin(a)*280,label:stage.items[i]||'Marco',done:false});
+        const spot=Physics.safeMarker(640+Math.cos(a)*350,440+Math.sin(a)*280,{level:G.level,adventure:G.adventure});
+        G.markers.push({x:spot.x,y:spot.y,label:stage.items[i]||'Marco',done:false});
       }
     }
     for(let i=0;i<115;i++){
@@ -58,11 +59,14 @@
   function hud(){
     const stage=level[G.level],a=G.adventure;
     $('hudChapter').textContent=stage.title;
-    $('hudHearts').textContent='♥ '.repeat(G.hearts)+'♡ '.repeat(3-G.hearts);
+    $('hudHearts').textContent='♥ '.repeat(G.hearts)+'♡ '.repeat((G.modeHard?2:3)-G.hearts);
     $('hudPoints').textContent='✦ '+G.points;
     $('hudLevel').textContent=(G.level+1)+'/20';
-    let done=G.complete,maximum=stage.count,message=stage.mission,label='MISSÃO';
-    if(stage.type==='laps'){done=G.laps;message=`${G.laps}/13 voltas · contorne as muralhas`;label=G.laps<6?'JERICÓ · DIA '+(G.laps+1):'JERICÓ · 7º DIA'}
+    let done=G.complete,maximum=stage.count,message=stage.mission,label='MISSÃO';const timerLeft=Math.max(0,Math.ceil(G.stageLimit-G.missionSeconds));
+    if(stage.type==='laps'){done=G.laps;const pct=Math.min(100,Math.floor(G.lapProgress/PI2*100));message=`${G.laps}/7 voltas no 7º dia · volta atual ${pct}% · siga as estacas`;label='JERICÓ · 7º DIA'}
+    if(stage.type==='escort'){message=`${G.complete}/3 grupos guiados · fique perto do povo`}
+    if(stage.type==='knowledge'||stage.type==='granary'||stage.type==='story'){message=`${G.complete}/${stage.count} etapas bíblicas · fale com o próximo personagem`}
+    if(stage.type==='fishing'||stage.type==='rhythm'||stage.type==='shipwreck'||stage.type==='storm'){message=`${G.complete}/${stage.count} desafios de precisão concluídos`}
     if(stage.type==='ark'){message=a.room==='inside'?`${G.complete}/3 depósitos preparados · transporte as provisões`:'Entre pela porta da arca para preparar os alimentos';label='PREPARAÇÃO'}
     if(stage.type==='arrive'){
       label=a.room==='inside'?'INTERIOR DA ARCA':'RECEBENDO OS ANIMAIS';
@@ -72,14 +76,121 @@
       else if(a.boardingIndex<4 && a.nextReadyAt>G.missionSeconds)message=`Próximo grupo em ${Math.ceil(a.nextReadyAt-G.missionSeconds)}s · observe a entrada`;
       else message=`Receba cada grupo e espere a animação de entrada · ${G.complete}/4`;
     }
-    if(stage.type==='sea')message=a.seaOpened?'Atravesse pelo caminho seco até a outra margem':'Encontre Moisés junto ao mar e fale com ele';
+    if(stage.type==='sea')message=a.seaOpened?(a.seaMarked?'Guie os israelitas pelo caminho seco até a outra margem':'Complete os três sinais de orientação com a mira'):'Encontre Moisés junto ao mar e fale com ele';
     if(stage.type==='storm')message=a.stormCleared?'A tempestade acalmou!':'Aproxime-se do barco e prepare-se';
     $('missionLabel').textContent=label;
-    $('missionText').textContent=message;
+    $('missionText').textContent=message+` · ⏳ ${timerLeft}s`;
     $('countLabel').textContent=done+'/'+maximum;
     $('missionFill').style.width=Math.min(100,done*100/maximum)+'%';
   }
   function toast(msg,seconds=2.8){$('statusToast').textContent=msg;$('statusToast').hidden=false;tinyToastUntil=performance.now()+seconds*1000}
+  function isOnline(){return !!Online?.info().active}
+  function isGuest(){return isOnline() && !Online.info().host}
+  function updateOnlinePlayers(players,selfId){
+    G.remotePlayers=Object.entries(players||{}).filter(([uid])=>uid!==selfId).map(([uid,p])=>({uid,name:String(p.name||'Jogador').slice(0,18),skin:p.skin||'homem',x:Number(p.x)||640,y:Number(p.y)||755,dir:p.dir||'down',pose:p.pose?1:0,room:p.room||'outdoor'}));
+    const list=$('onlinePlayers');list.replaceChildren();
+    const ids=Object.keys(players||{});$('onlinePlayerCount').textContent=ids.length+'/4';
+    for(const uid of ids){const p=players[uid],li=document.createElement('li');li.textContent=(p.skin==='menina'?'♀ ':p.skin==='mulher'?'♀ ':p.skin==='menino'?'♂ ':'♂ ')+(p.name||'Jogador');
+      const label=document.createElement('span');label.textContent=uid===selfId?'VOCÊ': 'JOGADOR';li.append(label);list.append(li)}
+  }
+  function onlineStateData(){
+    return {session:onlineSession,stage:G.level,mode:G.state,complete:G.complete,laps:G.laps,lapProgress:G.lapProgress,
+      points:G.points,missionSeconds:Math.round(G.missionSeconds*10)/10,stageLimit:G.stageLimit,
+      adventure:G.adventure,markers:G.markers,animals:G.animals,escort:G.escort,
+      cinematic:G.cinematic?{kind:G.cinematic.kind,t:G.cinematic.t,duration:G.cinematic.duration}:null,
+      title:$('cineTitle').textContent,kicker:$('cineKicker').textContent,caption:$('cineCaption').textContent,
+      leaderHearts:G.hearts,updatedAt:Date.now()};
+  }
+  function onlineApplyState(state){
+    if(!isGuest()||!state||!Number.isInteger(state.stage)||state.stage<0||state.stage>19)return;
+    // A tela de conclusão mostra o próximo capítulo antes do líder iniciá-lo.
+    if(state.mode==='stageComplete'||state.mode==='finished'||state.mode==='gameover'){
+      if(!guestWaiting){guestWaiting=true;stopInput();G.state='onlineWaiting';
+        G.unlocked=Math.max(G.unlocked,Math.min(19,state.stage));saveUnlock(G.unlocked);void Online.saveProgress(G.unlocked,Number(state.points)||0);
+        showPanel({title:state.mode==='gameover'?'Equipe sem vidas':state.mode==='finished'?'Jornada concluída!':'Fase concluída!',
+          description:'O líder da sala decide quando começar ou repetir o próximo capítulo. Aguarde com os amigos.',
+          reference:'Multiplayer · sala '+Online.info().room,button:'AGUARDE O LÍDER',canHome:true});
+        $('primaryBtn').disabled=true;
+      }
+      return;
+    }
+    if(state.session!==guestSession || G.level!==state.stage){
+      guestSession=state.session;G.level=state.stage;makeWorld();G.hearts=G.modeHard?2:3;
+      G.state='playing';guestWaiting=false;guestQuizClock=0;
+      $('mainOverlay').hidden=true;$('onlineOverlay').hidden=true;$('primaryBtn').disabled=false;syncUI();
+      toast('Fase compartilhada iniciada! Ajude o líder nas tarefas.',4);
+    }
+    const oldRoom=G.adventure?.room||'outdoor',newRoom=state.adventure?.room||'outdoor';
+    if(oldRoom!==newRoom){G.player=newRoom==='inside'?{x:640,y:776}:{x:640,y:568};stopInput()}
+    G.complete=Number(state.complete)||0;G.laps=Number(state.laps)||0;G.lapProgress=Number(state.lapProgress)||0;
+    G.points=Number(state.points)||0;G.missionSeconds=Number(state.missionSeconds)||0;G.stageLimit=Number(state.stageLimit)||220;
+    G.adventure=state.adventure||G.adventure;G.markers=state.markers||[];G.animals=state.animals||[];
+    G.escort=state.escort||G.escort;G.cinematic=state.mode==='cutscene'?state.cinematic:null;
+    if(state.mode==='cutscene' && G.state==='onlineScene'){
+      $('cineProgress').style.width=Math.min(100,Math.max(0,(state.cinematic?.t||0)/(state.cinematic?.duration||1)*100))+'%';
+    }
+    if(state.mode==='cutscene' && G.state==='playing'){
+      G.state='onlineScene';$('cineTitle').textContent=state.title||'A HISTÓRIA CONTINUA';
+      $('cineKicker').textContent=state.kicker||'';$('cineCaption').textContent=state.caption||'';
+      $('cineProgress').style.width=Math.min(100,Math.max(0,(state.cinematic?.t||0)/(state.cinematic?.duration||1)*100))+'%';
+      $('cinematicOverlay').hidden=false;
+    }else if(state.mode!=='cutscene'&&G.state==='onlineScene'){G.state='playing';$('cinematicOverlay').hidden=true;G.cinematic=null}
+    hud();syncUI();
+  }
+  function onlineCommand(uid,command,p){
+    if(!isOnline()||!Online.info().host||G.state!=='playing'||command.kind!=='interact')return;
+    if(!p||!Number.isFinite(Number(p.x))||!Number.isFinite(Number(p.y)))return;
+    // O comando de um convidado usa a última posição registrada no banco de dados.
+    const before=G.player,oldDirection=G.direction;
+    G.player={x:Math.max(25,Math.min(1255,Number(p.x))),y:Math.max(41,Math.min(936,Number(p.y)))};
+    interact();
+    G.player=(G.adventure?.room===p.room)?before:(G.adventure?.room==='inside'?{x:640,y:776}:{x:640,y:568});
+    G.direction=oldDirection;
+    void Online.snapshot(onlineStateData(),true);
+  }
+  function onlineHooks(){return {
+    onPlayers:updateOnlinePlayers,onState:onlineApplyState,onCommand:onlineCommand,
+    onProfile:profile=>{if(profile&&Number.isInteger(profile.unlocked)){G.unlocked=Math.max(G.unlocked,profile.unlocked);saveUnlock(G.unlocked)}},
+    onStatus:status=>{if(status==='playing'&&!Online.info().host){$('onlineHint').textContent='O líder começou. Carregando a aventura...';$('onlineStart').hidden=true}},
+    onLost:reason=>{$('onlineOverlay').hidden=true;G.remotePlayers=[];guestWaiting=false;$('primaryBtn').disabled=false;home();toast(reason,6)},
+    onError:msg=>{if(!$('onlineOverlay').hidden)$('onlineError').textContent=msg;else toast('Conexão online: '+msg,5)}
+  }}
+  function onlineLobby(){
+    const info=Online.info();$('onlineSetup').hidden=true;$('onlineLobby').hidden=false;
+    $('onlineRoomCode').textContent=info.room;$('onlineError').textContent='';
+    $('onlineDescription').textContent=info.host?'Você é o líder. Compartilhe o código e inicie quando todos entrarem.':'Você entrou! Aguarde o líder iniciar a aventura.';
+    $('onlineHint').textContent=info.host?'Quando todos entrarem, toque em INICIAR. A progressão de fases é controlada pelo líder.':'O líder decide quando cada capítulo começa.';
+    $('onlineStart').hidden=!info.host;$('onlineStart').disabled=false;
+    updateOnlinePlayers(info.players,info.uid);
+  }
+  function openOnline(){
+    if(G.state!=='menu')home();
+    $('mainOverlay').hidden=true;$('onlineOverlay').hidden=false;
+    $('onlineSetup').hidden=isOnline();$('onlineLobby').hidden=!isOnline();
+    $('onlineCreate').disabled=false;$('onlineJoin').disabled=false;
+    $('onlineError').textContent=Online.configured()?'':'É necessário preencher firebase-config.js no site antes de usar o online.';
+    if(isOnline())onlineLobby();
+  }
+  function guestMovement(dt){
+    if(G.state==='quiz'){
+      G.quizRemaining=Math.max(0,G.quizRemaining-dt);const s=Math.ceil(G.quizRemaining);
+      $('quizClock').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+      $('quizBarFill').style.width=(G.quizRemaining/G.quizLimit*100)+'%';
+      if(G.quizRemaining<=0)answerQuiz(false);return;
+    }
+    if(G.state!=='playing')return;
+    G.animTime+=dt*1000;guestQuizClock+=dt;
+    if(guestQuizClock>=60){guestQuizClock=0;launchQuiz();return}
+    let x=G.stick.x+(G.keys.right?1:0)-(G.keys.left?1:0),y=G.stick.y+(G.keys.down?1:0)-(G.keys.up?1:0);
+    const len=Math.hypot(x,y);if(len>1){x/=len;y/=len}
+    if(len>.12){const speed=(G.run||G.keys.shift)?330:197;
+      const collision=Physics.move(G.player.x,G.player.y,x*speed*dt,y*speed*dt,G);
+      G.player.x=collision.x;G.player.y=collision.y;G.walkMs+=dt*1000;
+      G.pose=Math.floor(G.walkMs/175)%2;
+      G.direction=Math.abs(x)>Math.abs(y)?(x>0?'right':'left'):(y>0?'down':'up');
+    }else G.pose=0;
+    const target=G.getTarget();$('interactionHint').hidden=!(target&&near(target.x,target.y,95));
+  }
   function syncUI(){
     const fullscreen=!!document.fullscreenElement;$('fullscreenBtn').textContent=fullscreen?'⤢':'⛶';$('panelFullscreenExit').hidden=!fullscreen;$('quizFullscreenExit').hidden=!fullscreen;
     $('pauseBtn').textContent=G.state==='paused'?'▶':'Ⅱ';
@@ -99,24 +210,28 @@
     $('panelReference').textContent=reference;
     $('panelReference').hidden=!reference;
     $('primaryBtn').textContent=button;
-    $('skinSection').hidden=!showSkins;
+    $('skinSection').hidden=!showSkins;$('difficultyPrefs').hidden=!showSkins;
     $('instructionsSection').hidden=!showInstructions;
     $('levelPickerBtn').hidden=!allowStages;
+    $('onlineOpenBtn').hidden=!showSkins;
     $('mainMenuBtn').hidden=!canHome;
     $('levelPicker').hidden=true;
     $('levelPickerBtn').textContent='Escolher fase';
     syncUI();
   }
   function home(){
-    stopInput();G.cinematic=null;$('cinematicOverlay').hidden=true;G.state='menu';G.level=G.selectedStage;G.hearts=3;
-    showPanel({title:'Heróis da Fé',description:'Uma aventura original em pixel art. Explore 20 episódios, conheça as histórias e responda aos desafios bíblicos.',reference:'Antigo Testamento · Jesus · Atos dos Apóstolos',button:'COMEÇAR AVENTURA',showSkins:true,showInstructions:true,allowStages:true});
-    hud();
+    if(isOnline()){void Online.leave();G.remotePlayers=[];guestWaiting=false;$('onlineOverlay').hidden=true;}
+    $('primaryBtn').disabled=false;guestSession=0;guestWaiting=false;
+    stopInput();G.cinematic=null;G.skill=null;$('cinematicOverlay').hidden=true;$('aimOverlay').hidden=true;$('learnOverlay').hidden=true;G.state='menu';G.level=G.selectedStage;G.hearts=G.modeHard?2:3;
+    showPanel({title:'Heróis da Fé',description:'20 histórias bíblicas com desafios de estratégia, agilidade, perguntas e missões em pixel art. Errar pode fazer você perder.',reference:'Antigo Testamento · Jesus · Atos dos Apóstolos',button:'COMEÇAR AVENTURA',showSkins:true,showInstructions:true,allowStages:true});
+    hud();showRecords();
   }
   function startStage(stageIndex=G.level){
-    stopInput();G.level=Math.max(0,Math.min(19,stageIndex));makeWorld();
-    G.state='playing';$('mainOverlay').hidden=true;$('quizOverlay').hidden=true;$('cinematicOverlay').hidden=true;$('statusToast').hidden=true;
+    stopInput();G.level=Math.max(0,Math.min(19,stageIndex));G.hearts=G.modeHard?2:3;makeWorld();
+    G.state='playing';$('mainOverlay').hidden=true;$('quizOverlay').hidden=true;$('cinematicOverlay').hidden=true;$('aimOverlay').hidden=true;$('learnOverlay').hidden=true;$('statusToast').hidden=true;
     hud();syncUI();
-    toast(G.level===1?'Os animais chegam sozinhos, em grupos. Acompanhe a entrada e depois organize os compartimentos.':level[G.level].mission,4);
+    if(isOnline()&&Online.info().host){onlineSession++;void Online.snapshot(onlineStateData(),true)}
+    toast(G.level===8?'Jericó: os seis primeiros dias aparecem na cena. Você joga as sete voltas do sétimo dia.':G.level===1?'Os animais vêm por conta própria. Cada entrada leva tempo e você organizará os compartimentos.':level[G.level].mission,6);if(G.level===8)playCinematic('introJericho',{title:'OS SEIS PRIMEIROS DIAS',kicker:'JOSUÉ 6:12–14',caption:'O povo marchou uma volta por dia. Agora chegou o sétimo dia: serão sete voltas.',duration:5,onEnd:()=>{G.lapClock=G.missionSeconds}});
   }
   function paused(){if(G.state!=='playing')return;stopInput();G.state='paused';showPanel({title:'Jogo pausado',description:level[G.level].story,reference:level[G.level].reference,button:'RETOMAR AVENTURA',canHome:true})}
   function resumed(){G.state='playing';$('mainOverlay').hidden=true;syncUI()}
@@ -145,6 +260,43 @@
     view.cameraX=640;view.cameraY=640;hud();
   }
   function near(x,y,r=96){return Math.hypot(G.player.x-x,G.player.y-y)<=r}
+  function recordMedal(stage,grade){try{const data=JSON.parse(localStorage.getItem(scoreKey)||'{}');if(!data[stage]||grade>data[stage]){data[stage]=grade;localStorage.setItem(scoreKey,JSON.stringify(data))}}catch{}}
+  function showRecords(){try{const data=JSON.parse(localStorage.getItem(scoreKey)||'{}');let gold=Object.values(data).filter(x=>x===3).length;let cleared=Object.keys(data).length;$('recordText').textContent=`Progresso local: ${cleared}/20 fases com medalha · ${gold} ouro`;}catch{$('recordText').textContent='O progresso é salvo neste navegador.'}}
+  function loseHeart(reason){if(['gameover','finished','menu'].includes(G.state))return;G.hearts=Math.max(0,G.hearts-1);G.penalties++;hud();if(G.hearts===0){G.state='gameover';stopInput();G.skill=null;$('aimOverlay').hidden=true;$('quizOverlay').hidden=true;$('learnOverlay').hidden=true;$('cinematicOverlay').hidden=true;showPanel({title:'GAME OVER',description:`${reason} · Você chegou à fase ${G.level+1}. Recomece deste capítulo e tente melhorar sua estratégia.`,reference:level[G.level].reference,button:'TENTAR NOVAMENTE',canHome:true});return}toast(`${reason} · −1 coração (${G.hearts} restantes)`,4)}
+  function showLearning(title,explanation,reference,onEnd){G.state='learn';stopInput();$('learnOverlay').hidden=false;$('learnTitle').textContent=title;$('learnExplanation').textContent=explanation;$('learnReference').textContent=reference;$('learnContinue').onclick=()=>{$('learnOverlay').hidden=true;if(G.state!=='learn')return;G.state='playing';syncUI();if(onEnd)onEnd()};syncUI()}
+  function questionForStage(){const group=D.stageChallenges?.[G.level];return group?.[G.complete]||null}
+  function shuffle(items){
+    for(let i=items.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[items[i],items[j]]=[items[j],items[i]]}
+    return items;
+  }
+  function pickPeriodicQuestion(){
+    const extras=D.extraQuestions?.[G.level]||[];
+    const scripted=D.stageChallenges?.[G.level]||[];
+    const candidates=[D.questions[G.level],...extras,...scripted];
+    if(!G.questionDeck.length){
+      G.questionDeck=shuffle(candidates.map((_,i)=>i));
+      if(candidates[G.questionDeck[0]]?.[0]===G.lastQuestionText && G.questionDeck.length>1){
+        const first=G.questionDeck.shift();G.questionDeck.push(first);
+      }
+    }
+    const q=candidates[G.questionDeck.shift()];G.lastQuestionText=q[0];return q;
+  }
+  function randomizeOptions(q){
+    const indices=shuffle(q[1].map((_,i)=>i));
+    return [q[0],indices.map(i=>q[1][i]),indices.indexOf(q[2]),q[3]];
+  }
+  function askQuestion(q,success,limit=40){if(G.state!=='playing')return;
+    q=randomizeOptions(q);
+    stopInput();G.state='quiz';G.quizRemaining=limit;G.quizLimit=limit;G.quizPayload={q,success};$('quizQuestion').textContent=q[0];const target=$('quizAnswers');target.replaceChildren();q[1].forEach((t,i)=>{const b=document.createElement('button');b.type='button';b.textContent=String.fromCharCode(65+i)+') '+t;b.onclick=()=>answerQuiz(i===q[2]);target.appendChild(b)});$('quizOverlay').hidden=false;const sec=Math.ceil(limit);$('quizClock').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');$('quizBarFill').style.width='100%';syncUI()
+  }
+  function concludeMarker(mark,points=70){mark.done=true;G.complete++;G.points+=points;hud();if(G.complete>=level[G.level].count){const stage=level[G.level];if(stage.type==='story')playCinematic('scene',{title:'UMA HISTÓRIA DE AMOR',kicker:'LUCAS 22–23',caption:'A cruz faz parte da história que aponta para a ressurreição.',duration:6,onEnd:stageDone});else if(stage.type==='shipwreck')playCinematic('storm',{title:'TODOS CHEGARAM À TERRA',kicker:'ATOS 27:44',caption:'Mesmo depois do naufrágio, todos chegaram vivos à terra.',duration:5.6,onEnd:stageDone});else if(stage.type==='rhythm')playCinematic('scene',{title:'PORTAS ABERTAS',kicker:'ATOS 16:25–34',caption:'O terremoto aconteceu, e o carcereiro ouviu a mensagem.',duration:5.3,onEnd:stageDone});else if(stage.type==='storm')playCinematic('storm',{title:'SILÊNCIO! AQUIETAI-VOS!',kicker:'MARCOS 4:39',caption:'Jesus repreendeu o vento e o mar, e tudo se acalmou.',duration:6,onEnd:stageDone});else if(stage.type==='feed')playCinematic('bread',{kicker:'JOÃO 6:11–13',title:'TODOS FICARAM SATISFEITOS',caption:'Jesus multiplicou os pães e os peixes para a multidão.',duration:5,onEnd:stageDone});else stageDone()}else toast('Etapa concluída! Siga o próximo marco.',2.8)}
+  function startSkill(purpose,goal,onFinish,{title='Desafio de precisão',hint='Acompanhe o sinal em movimento e alinhe a mira.',secs=25,fail}={}){
+    stopInput();G.state='skill';G.skill={purpose,goal,index:0,time:secs,initial:secs,miss:0,retX:.5,retY:.5,phase:0,fail,title,hint};$('aimOverlay').hidden=false;$('aimTitle').textContent=title;$('aimDescription').textContent=hint;$('aimKicker').textContent=level[G.level].reference;$('aimLearning').hidden=true;drawSkill();syncUI()
+  }
+  function skillTarget(){const sk=G.skill;if(!sk)return {x:.5,y:.5};const v=sk.phase+sk.index*1.77;return {x:.5+Math.sin(v*1.45)*(.28+(G.modeHard?.07:0)),y:.5+Math.cos(v*1.21)*(.26+(G.modeHard?.04:0))}}
+  function drawSkill(){const sk=G.skill;if(!sk)return;const target=skillTarget();$('aimTarget').style.left=(target.x*100)+'%';$('aimTarget').style.top=(target.y*100)+'%';$('aimReticle').style.left=(sk.retX*100)+'%';$('aimReticle').style.top=(sk.retY*100)+'%';$('aimCount').textContent=`ALVO ${sk.index+1} DE ${sk.goal}`;$('aimTime').textContent=`${Math.ceil(sk.time)}s`;$('aimErrors').textContent=`ERROS ${sk.miss}/3`;}
+  function failSkill(){const sk=G.skill;if(!sk)return;const onFail=sk.fail;G.skill=null;$('aimOverlay').hidden=true;G.state='playing';loseHeart('Desafio de habilidade não concluído');if(G.state==='gameover')return;if(typeof onFail==='function')onFail();syncUI()}
+  function fireSkill(){const sk=G.skill;if(G.state!=='skill'||!sk)return;const p=skillTarget(),distance=Math.hypot((p.x-sk.retX)*1.3,p.y-sk.retY);const radius=G.modeHard?.09:.145;if(distance>radius){sk.miss++;if(sk.miss>=3)failSkill();else{toast('A mira passou longe! Tente antecipar o movimento.');drawSkill()}return}sk.index++;G.points+=40;if(sk.index>=sk.goal){const purpose=sk.purpose;G.skill=null;$('aimOverlay').hidden=true;G.state='playing';syncUI();G.points+=80;purpose();}else{sk.phase+=.7;sk.time+=5;sk.retX=.5;sk.retY=.5;toast('Alvo acertado! Continue.',1.5);drawSkill()}}
   function interactArk(){
     const a=G.adventure;
     if(a.room==='outdoor'){
@@ -196,8 +348,8 @@
     const a=G.adventure;
     if(!a.seaOpened){
       if(!near(640,635,112)){toast('Aproxime-se de Moisés, na margem do mar.');return}
-      playCinematic('sea',{kicker:'ÊXODO 14:21–22',title:'O MAR VERMELHO SE ABRE',caption:'Um forte vento soprou, as águas se dividiram e surgiu terra seca.',duration:7,onEnd:()=>{a.seaOpened=true;a.seaProgress=1;toast('O caminho está aberto. Atravesse até a outra margem!',5);hud()}});
-    }else toast('Passe entre as muralhas de água e chegue à outra margem.');
+      playCinematic('sea',{kicker:'ÊXODO 14:21–22',title:'O MAR VERMELHO SE ABRE',caption:'Um forte vento soprou, as águas se dividiram e surgiu terra seca.',duration:7,onEnd:()=>{a.seaOpened=true;a.seaProgress=1;toast('As águas se abriram! Sinalize a passagem para as famílias.',5);hud()}});
+    }else if(!a.seaMarked){startSkill(()=>{a.seaMarked=true;G.stageLimit+=40;G.points+=100;toast('Passagem sinalizada! Atravesse com o povo pela terra seca.',5);hud()},3,{title:'Sinalize a travessia',hint:'Acerte 3 pontos seguros em movimento. Deus abriu o mar; este é um desafio de orientação.',secs:G.modeHard?24:35});}else toast('Acompanhe as famílias pelo caminho seco e chegue à outra margem.');
   }
   function interactStorm(){
     const a=G.adventure;
@@ -206,78 +358,78 @@
     playCinematic('storm',{kicker:'MARCOS 4:35–41',title:'SILÊNCIO! AQUIETAI-VOS!',caption:'O vento sopra, as ondas crescem... e então acontece a calmaria.',duration:8,onEnd:()=>{a.stormCleared=true;stageDone()}});
   }
   function stageDone(){
-    G.state='stageComplete';stopInput();G.points+=250;
+    G.state='stageComplete';stopInput();G.points+=250;const medal=G.penalties===0?3:G.penalties<=2?2:1;recordMedal(G.level,medal);showRecords();
     const done=G.level,final=done===19;
     G.unlocked=Math.max(G.unlocked,Math.min(19,done+1));saveUnlock(G.unlocked);
+    if(isOnline()&&Online.info().host)void Online.saveProgress(G.unlocked,G.points);
     if(final){G.state='finished';showPanel({title:'Jornada concluída!',description:`Você percorreu os 20 episódios. Pontuação: ${G.points}. Esta aventura usa atividades lúdicas inspiradas nas passagens bíblicas.`,reference:'Do Gênesis até Atos',button:'JOGAR NOVAMENTE',canHome:true});}
-    else {G.level=done+1;const next=level[G.level];showPanel({title:'Fase concluída!',description:`Próxima aventura: ${next.title}. ${next.story}`,reference:next.reference,button:`CONTINUAR · FASE ${done+2}`,canHome:true})}
+    else {G.level=done+1;const next=level[G.level];showPanel({title:'Fase concluída!',description:`Medalha ${['','BRONZE','PRATA','OURO'][medal]}! Próxima aventura: ${next.title}. ${next.story}`,reference:next.reference,button:`CONTINUAR · FASE ${done+2}`,canHome:true})}
     hud();
+    if(isOnline()&&Online.info().host)void Online.snapshot(onlineStateData(),true);
   }
   function interact(){
     if(G.state!=='playing')return;
+    if(isGuest()){void Online.command('interact');toast('Interação enviada ao líder da sala.',1.7);return;}
     const lvl=level[G.level];
     if(lvl.type==='ark'){interactArk();return}
     if(lvl.type==='arrive'){interactAnimals();return}
     if(lvl.type==='sea'){interactSea();return}
-    if(lvl.type==='storm'){interactStorm();return}
-    if(lvl.type==='laps'){toast('Contorne a muralha de Jericó pelo caminho exterior.');return}
-    if(lvl.type==='feed' && G.missionSeconds<G.adventure.feedCooldown){toast(`Aguarde ${Math.ceil(G.adventure.feedCooldown-G.missionSeconds)}s para distribuir ao próximo grupo.`);return}
-    const mark=G.markers.find(m=>!m.done && near(m.x,m.y,84));
-    if(!mark){toast('Procure um marco brilhante e aproxime-se.');return}
-    mark.done=true;G.complete++;G.points+=50;
-    if(lvl.type==='feed'){G.adventure.feedCooldown=G.missionSeconds+4;toast('Alimento entregue! Jesus alimentou a multidão. Siga para outro grupo.',3)}
-    else toast(`${mark.label} concluído!`,2);
-    hud();if(G.complete>=lvl.count){if(lvl.type==='feed')playCinematic('bread',{kicker:'JOÃO 6:11–13',title:'TODOS COMERAM E FICARAM SATISFEITOS',caption:'Jesus multiplicou os pães e os peixes para a multidão.',duration:4.8,onEnd:stageDone});else stageDone();}
+    if(lvl.type==='storm'&&G.complete>=lvl.count){interactStorm();return}
+    if(lvl.type==='laps'){toast('Siga a trilha marcada. Ao concluir certas voltas, acerte o ritmo das trombetas.');return}
+    if(lvl.type==='feed' && G.missionSeconds<G.adventure.feedCooldown){toast(`Próxima entrega em ${Math.ceil(G.adventure.feedCooldown-G.missionSeconds)}s.`);return}
+    const mark=(lvl.type==='feed'?G.markers.find(m=>!m.done&&near(m.x,m.y,85)):G.markers[G.complete]);
+    if(!mark||mark.done||!near(mark.x,mark.y,90)){toast('Aproxime-se do próximo marco brilhante.');return}
+    const idx=G.complete;
+    const custom=questionForStage();
+    if(['knowledge','granary','story'].includes(lvl.type)){
+      const q=custom||[D.questions[G.level][0],D.questions[G.level][1],D.questions[G.level][2],D.questions[G.level][3]];
+      askQuestion(q,()=>concludeMarker(mark),G.modeHard?26:40);return
+    }
+    if(['fishing','rhythm','shipwreck','storm'].includes(lvl.type)){
+      const info={fishing:['Puxe a rede no momento certo','Alinhe-se à bóia móvel e lance a rede.'],rhythm:['Acompanhe o ritmo do louvor','Sincronize com o sinal luminoso. A oração e o louvor estão em Atos 16:25.'],shipwreck:['Enfrente as ondas','Mantenha a embarcação na rota em meio às ondas.'],storm:['Mantenha o barco estável','Oriente a tripulação durante a tempestade.']}[lvl.type];
+      startSkill(()=>concludeMarker(mark),G.modeHard?3:2,{title:info[0],hint:info[1],secs:G.modeHard?20:28});return
+    }
+    if(lvl.type==='feed')G.adventure.feedCooldown=G.missionSeconds+5;
+    if(lvl.type==='escort' && Math.hypot(G.escort.x-G.player.x,G.escort.y-G.player.y)>155){toast('Espere as famílias chegarem! Não deixe o povo para trás.');return}
+    if(['route','investigate','escort'].includes(lvl.type) && (idx%2===1)){
+      const q=D.questions[G.level];askQuestion([q[0],q[1],q[2],q[3]],()=>concludeMarker(mark),G.modeHard?25:38);return
+    }
+    if(lvl.type==='feed')toast('Alimento distribuído! Vá ao próximo grupo.',2.5);
+    concludeMarker(mark,lvl.type==='feed'?60:80);
   }
+
+  // Jericó: o percurso é a trilha marcada pelas oito estacas, não a parede do edifício.
+  // Trilha com ampla tolerância para joysticks e telas pequenas. Só conta movimento
+  // angular contínuo no mesmo sentido: ficar andando para frente e para trás não pontua.
   function checkLaps(dx,dy){
     if(G.level!==8||G.state!=='playing')return;
     const x=G.player.x-640,y=G.player.y-433,rad=Math.hypot(x,y);
-    if(rad<235||rad>440||Math.abs(dx)+Math.abs(dy)<.08){G.lapAngle=null;return}
+    // A trilha tem raio ~335 px. Área válida generosa para caminhar junto às estacas.
+    if(rad<205||rad>500||Math.abs(dx)+Math.abs(dy)<.05){G.lapAngle=null;return}
     const a=Math.atan2(y,x);
     if(G.lapAngle!==null){
       let change=a-G.lapAngle;
       while(change>Math.PI)change-=PI2;
       while(change< -Math.PI)change+=PI2;
       if(Math.abs(change)<.28){
-        if(!G.lapDirection && Math.abs(change)>.005)G.lapDirection=Math.sign(change);
+        if(!G.lapDirection&&Math.abs(change)>.003)G.lapDirection=Math.sign(change);
+        const previousBucket=Math.floor(G.lapProgress/PI2*20);
         G.lapProgress=Math.max(0,G.lapProgress+change*G.lapDirection);
-        if(G.lapProgress>=PI2-.09){
+        if(G.lapProgress>=PI2-.07){
           G.lapProgress=0;G.lapDirection=0;G.laps++;G.points+=65;
-          const msg=G.laps<6?`Dia ${G.laps} concluído. Continue a marcha!`:G.laps===6?'Seis dias concluídos! No sétimo dia são sete voltas.':`Volta ${G.laps-6} de 7 do sétimo dia.`;
+          const msg=`Volta ${G.laps} de 7 no sétimo dia. Continue junto à procissão!`;
           toast(msg,4);hud();
-          if(G.laps>=13){playCinematic('jericho',{kicker:'JOSUÉ 6:20',title:'AS MURALHAS CAÍRAM',caption:'O povo gritou e a muralha caiu. A vitória veio do Senhor.',duration:7,onEnd:stageDone});return}
-        }
+          if([2,4,6,7].includes(G.laps)){const isLast=G.laps===7;startSkill(()=>{if(isLast)playCinematic('jericho',{kicker:'JOSUÉ 6:20',title:'AS MURALHAS CAÍRAM',caption:'Os sacerdotes tocaram, o povo gritou e a muralha caiu.',duration:7,onEnd:stageDone});else toast('Toque das trombetas concluído! Continue a marcha.',3)},isLast?3:2,{title:isLast?'O TOQUE FINAL DAS TROMBETAS':'O TOQUE DAS TROMBETAS',hint:'Acerte o ritmo dos sacerdotes que caminhavam diante da Arca da Aliança.',secs:G.modeHard?19:29,fail:()=>{G.laps=Math.max(0,G.laps-1);G.lapProgress=0;hud()}});return}
+          if(G.laps>=7){playCinematic('jericho',{kicker:'JOSUÉ 6:20',title:'AS MURALHAS CAÍRAM',caption:'O povo gritou e a muralha caiu. A vitória veio do Senhor.',duration:7,onEnd:stageDone});return}
+        }else if(previousBucket!==Math.floor(G.lapProgress/PI2*20))hud();
       }
     }
     G.lapAngle=a;
   }
-  function launchQuiz(){
-    if(G.state!=='playing')return;
-    stopInput();G.state='quiz';G.quizRemaining=60;
-    const q=D.questions[G.level];
-    $('quizQuestion').textContent=q[0];
-    const target=$('quizAnswers');target.replaceChildren();
-    q[1].forEach((answerText,i)=>{
-      const btn=document.createElement('button');btn.type='button';btn.textContent=String.fromCharCode(65+i)+') '+answerText;
-      btn.addEventListener('click',()=>answerQuiz(i===q[2]));target.appendChild(btn);
-    });
-    $('quizOverlay').hidden=false;$('quizClock').textContent='01:00';$('quizBarFill').style.width='100%';
-    syncUI();
-  }
-  function answerQuiz(correct){
-    if(G.state!=='quiz')return;
-    $('quizOverlay').hidden=true;
-    G.nextQuestion=G.missionSeconds+60;
-    if(correct){G.points+=100;toast('Resposta certa! +100 pontos',3)}
-    else {G.hearts=Math.max(0,G.hearts-1);toast('Resposta incorreta ou tempo esgotado. −1 coração',3)}
-    if(G.hearts===0){
-      G.state='gameover';stopInput();
-      showPanel({title:'Fim de jogo',description:`Você perdeu os três corações na fase ${G.level+1}. Tente novamente e continue aprendendo!`,reference:level[G.level].reference,button:'TENTAR NOVAMENTE',canHome:true});
-      G.hearts=3;
-    }else G.state='playing';
-    hud();syncUI();
-  }
+  function launchQuiz(){if(G.state!=='playing')return;const q=pickPeriodicQuestion();askQuestion(q,()=>{G.points+=100;},60)}
+  function answerQuiz(correct){if(G.state!=='quiz')return;const payload=G.quizPayload||{};const q=payload.q||D.questions[G.level];$('quizOverlay').hidden=true;G.nextQuestion=G.missionSeconds+60;G.quizPayload=null;G.state='playing';if(!correct){loseHeart('Resposta errada ou tempo esgotado');if(G.state==='gameover')return}const explanation=q[3]||level[G.level].story;showLearning(correct?'Resposta correta!':'Aprenda com esta resposta',explanation,level[G.level].reference,correct?payload.success:null)}
   function update(dt){
+    if(isGuest()){guestMovement(dt);return;}
     if(G.state==='cutscene'){
       const c=G.cinematic;if(!c)return;
       c.t=Math.min(c.duration,c.t+dt);G.animTime+=dt*1000;
@@ -288,16 +440,19 @@
       if(c.t>=c.duration)finishCinematic();
       return;
     }
+    if(G.state==='skill'){const sk=G.skill;if(sk){sk.time-=dt;sk.phase+=dt*(G.modeHard?2.2:1.6);drawSkill();if(sk.time<=0)failSkill();}return}
     if(G.state==='quiz'){
       G.quizRemaining=Math.max(0,G.quizRemaining-dt);
       const s=Math.ceil(G.quizRemaining);
       $('quizClock').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-      $('quizBarFill').style.width=(G.quizRemaining/60*100)+'%';
+      $('quizBarFill').style.width=(G.quizRemaining/G.quizLimit*100)+'%';
       if(G.quizRemaining<=0)answerQuiz(false);
       return;
     }
     if(G.state!=='playing')return;
     G.animTime+=dt*1000;G.missionSeconds+=dt;
+    if(G.missionSeconds>G.stageLimit){G.stageLimit=G.missionSeconds+(G.modeHard?90:120);loseHeart('Tempo limite da missão esgotado');if(G.state==='gameover')return;}
+    if(Math.floor(G.missionSeconds)%2===0 && Math.floor(G.missionSeconds)!==Math.floor(G.missionSeconds-dt))hud();
     if(G.missionSeconds>=G.nextQuestion){launchQuiz();return}
     const lvl=level[G.level],adv=G.adventure;
     if(lvl.type==='arrive'&&adv.room==='outdoor'&&adv.boardingIndex<4){
@@ -319,23 +474,30 @@
       }
       if(Math.floor(G.missionSeconds)!==Math.floor(G.missionSeconds-dt))hud();
     }
+    if(lvl.type==='escort'){
+      const d=Math.hypot(G.player.x-G.escort.x,G.player.y-G.escort.y);
+      if(d>36){let move=Math.min(d-36,dt*(G.modeHard?164:187));G.escort.x+=(G.player.x-G.escort.x)/d*move;G.escort.y+=(G.player.y-G.escort.y)/d*move}
+      if(d>198){G.escort.far+=dt;if(G.escort.far>(G.modeHard?4:7)){G.escort.far=0;loseHeart('Você se afastou demais das famílias');if(G.state==='gameover')return}}
+      else G.escort.far=Math.max(0,G.escort.far-dt*2)
+    }
     let x=G.stick.x+(G.keys.right?1:0)-(G.keys.left?1:0);
     let y=G.stick.y+(G.keys.down?1:0)-(G.keys.up?1:0);
     const len=Math.hypot(x,y);
     if(len>1){x/=len;y/=len}
     if(len>.12){
       const speed=(G.run||G.keys.shift)?330:197;
-      let nx=Math.max(25,Math.min(WIDTH-25,G.player.x+x*speed*dt));
-      let ny=Math.max(40,Math.min(HEIGHT-24,G.player.y+y*speed*dt));
-      if(lvl.type==='sea'&&adv.room==='outdoor'){
-        if(!adv.seaOpened && ny<425)ny=425;
-        if(adv.seaOpened && (ny<414 && ny>120) && Math.abs(nx-640)>79){nx=Math.max(562,Math.min(718,nx));}
+      // Colisões apenas com construções, muralhas e água profunda.
+      // O ciclo da caminhada segue mesmo se o personagem pressionar a parede.
+      const collision=Physics.move(G.player.x,G.player.y,x*speed*dt,y*speed*dt,G);
+      G.player.x=collision.x;G.player.y=collision.y;
+      if(collision.hit && G.missionSeconds-G.blockedHintAt>4){
+        G.blockedHintAt=G.missionSeconds;
+        toast(collision.hit==='water'?(lvl.type==='sea'?'Água profunda! Aguarde a abertura do mar e atravesse pela terra seca.':'Água profunda! Use a ponte ou o caminho seguro.'):'Parede sólida! Procure a porta ou contorne a construção.',2.2);
       }
-      G.player.x=nx;G.player.y=ny;
       G.walkMs+=dt*1000;G.pose=(Math.floor(G.walkMs/175)%2);
       G.direction=Math.abs(x)>Math.abs(y)?(x>0?'right':'left'):(y>0?'down':'up');
       checkLaps(x,y);
-      if(lvl.type==='sea'&&adv.seaOpened&&G.player.y<130){G.complete=1;hud();playCinematic('crossing',{title:'A TRAVESSIA FOI CONCLUÍDA',kicker:'ÊXODO 14:29',caption:'O povo passou pelo mar em terra seca.',duration:3.5,onEnd:stageDone});return}
+      if(lvl.type==='sea'&&adv.seaOpened&&adv.seaMarked&&G.player.y<130){G.complete=3;hud();playCinematic('crossing',{title:'A TRAVESSIA FOI CONCLUÍDA',kicker:'ÊXODO 14:29',caption:'O povo passou pelo mar em terra seca.',duration:3.5,onEnd:stageDone});return}
     }else{G.pose=0;G.lapAngle=null}
     const target=G.getTarget();
     const ready=target && near(target.x,target.y,95);
@@ -361,6 +523,10 @@
   function frame(t){
     const dt=Math.min(.045,Math.max(0,(t-lastFrame)/1000||.016));lastFrame=t;
     update(dt);
+    if(isOnline() && Online.info().status==='playing'){
+      void Online.position({x:G.player.x,y:G.player.y,dir:G.direction,pose:G.pose,room:G.adventure?.room||'outdoor'});
+      if(Online.info().host)void Online.snapshot(onlineStateData());
+    }
     if(t>tinyToastUntil && !$('statusToast').hidden)$('statusToast').hidden=true;
     const worldWidth=view.width/view.zoom,worldHeight=view.height/view.zoom;
     let cx=worldWidth>=WIDTH?WIDTH/2:Math.min(WIDTH-worldWidth/2,Math.max(worldWidth/2,G.player.x));
@@ -418,7 +584,7 @@
   ['pointerup','pointercancel','lostpointercapture'].forEach(evt=>run.addEventListener(evt,endRun));
   $('actionBtn').addEventListener('pointerdown',e=>{e.preventDefault();interact()});
   const mapping={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'};
-  window.addEventListener('keydown',e=>{
+  window.addEventListener('keydown',e=>{if(G.state==='skill'){if(e.code==='Space'||e.key==='Enter'){fireSkill();e.preventDefault();return}if(G.skill&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){const sk=G.skill;sk.retX=Math.max(.06,Math.min(.94,sk.retX+(e.key==='ArrowLeft'?-.045:e.key==='ArrowRight'?.045:0)));sk.retY=Math.max(.06,Math.min(.94,sk.retY+(e.key==='ArrowUp'?-.045:e.key==='ArrowDown'?.045:0)));drawSkill();e.preventDefault();return}}
     const k=e.key.length===1?e.key.toLowerCase():e.key;
     if(mapping[k]&&G.state==='playing'){G.keys[mapping[k]]=true;e.preventDefault()}
     else if(k==='Shift'){G.keys.shift=true}
@@ -433,26 +599,60 @@
   window.addEventListener('resize',resize);
   if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>{const w=app.getBoundingClientRect().width,h=app.getBoundingClientRect().height;if(Math.abs(w-view.width)>2||Math.abs(h-view.height)>2)resize()});
   document.addEventListener('fullscreenchange',()=>{resize();syncUI()});
-  $('skipCutscene').onclick=()=>{if(G.state==='cutscene')finishCinematic()};
+  $('skipCutscene').onclick=()=>{if(isGuest())return;if(G.state==='cutscene')finishCinematic()};
   $('dismissRotation').onclick=()=>{rotationDismissed=true;$('rotationTip').hidden=true};
   $('fullscreenBtn').onclick=()=>{void tryLandscapeFullscreen()};
   const leaveFullscreen=()=>{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})};
   $('panelFullscreenExit').onclick=leaveFullscreen;
   $('quizFullscreenExit').onclick=leaveFullscreen;
-  $('quizQuit').onclick=()=>{leaveFullscreen();home()};
+  $('quizQuit').onclick=()=>{leaveFullscreen();home()};$('aimExit').onclick=()=>{leaveFullscreen();home()};
   $('pauseBtn').onclick=()=>{if(G.state==='playing')paused();else if(G.state==='paused')resumed()};
   $('exitBtn').onclick=()=>{if(document.fullscreenElement){document.exitFullscreen().catch(()=>{})}if(G.state==='playing'||G.state==='paused'||G.state==='quiz'||G.state==='cutscene'){G.cinematic=null;$('cinematicOverlay').hidden=true;paused();G.state='paused';showPanel({title:'Sair da aventura?',description:'A fase atual está pausada. Você pode retomá-la ou voltar ao início.',reference:level[G.level].reference,button:'RETOMAR AVENTURA',canHome:true})}else home()};
+  $('onlineOpenBtn').onclick=openOnline;
+  const onlineNick=()=>$('onlineNick').value.trim().slice(0,18)||'Jogador';
+  function onlineBusy(isBusy){$('onlineCreate').disabled=isBusy;$('onlineJoin').disabled=isBusy;
+    $('onlineCreate').textContent=isBusy?'CONECTANDO...':'CRIAR SALA';}
+  $('onlineCreate').onclick=async()=>{
+    onlineBusy(true);$('onlineError').textContent='';
+    try{await Online.create(onlineNick(),G.skin,onlineHooks());onlineLobby()}
+    catch(e){$('onlineError').textContent=e.message}
+    finally{onlineBusy(false)}
+  };
+  $('onlineJoin').onclick=async()=>{
+    onlineBusy(true);$('onlineError').textContent='';
+    try{await Online.join($('onlineCode').value,onlineNick(),G.skin,onlineHooks());onlineLobby()}
+    catch(e){$('onlineError').textContent=e.message}
+    finally{onlineBusy(false)}
+  };
+  $('onlineCopy').onclick=async()=>{
+    const code=Online.info().room;
+    try{await navigator.clipboard.writeText(code);$('onlineHint').textContent='Código '+code+' copiado! Envie aos seus amigos.'}
+    catch{$('onlineHint').textContent='Compartilhe este código: '+code}
+  };
+  $('onlineStart').onclick=async()=>{
+    $('onlineError').textContent='';$('onlineStart').disabled=true;
+    try{await Online.start();$('onlineOverlay').hidden=true;
+      G.points=0;G.level=G.selectedStage;startStage();
+      if(mobile)void tryLandscapeFullscreen();}
+    catch(e){$('onlineError').textContent=e.message;$('onlineStart').disabled=false}
+  };
+  $('onlineBack').onclick=()=>{if(isOnline())void Online.leave();G.remotePlayers=[];$('onlineOverlay').hidden=true;home()};
   $('mainMenuBtn').onclick=home;
+  $('challengeMode').onchange=e=>{G.modeHard=e.target.checked;G.hearts=G.modeHard?2:3;hud()};
+  $('aimFire').onclick=fireSkill;
+  const aimBoard=$('aimBoard');const aimFromPointer=e=>{if(!G.skill)return;const r=aimBoard.getBoundingClientRect();G.skill.retX=Math.min(.94,Math.max(.06,(e.clientX-r.left)/r.width));G.skill.retY=Math.min(.94,Math.max(.06,(e.clientY-r.top)/r.height));drawSkill()};
+  aimBoard.addEventListener('pointerdown',e=>{if(!G.skill)return;e.preventDefault();aimBoard.setPointerCapture(e.pointerId);aimFromPointer(e)});aimBoard.addEventListener('pointermove',e=>{if(G.skill&&e.buttons)aimFromPointer(e)});
+  showRecords();
   $('levelPickerBtn').onclick=()=>{if($('levelPicker').hidden)showLevels();else{$('levelPicker').hidden=true;$('levelPickerBtn').textContent='Escolher fase'}};
   $('primaryBtn').onclick=()=>{
     if(G.state==='menu'){
-      G.points=0;G.hearts=3;G.level=G.selectedStage;startStage();
+      G.points=0;G.hearts=G.modeHard?2:3;G.level=G.selectedStage;startStage();
       if(mobile)void tryLandscapeFullscreen();
     }
     else if(G.state==='paused')resumed();
     else if(G.state==='stageComplete')startStage(G.level);
     else if(G.state==='gameover')startStage(G.level);
-    else if(G.state==='finished'){G.hearts=3;G.points=0;G.selectedStage=0;startStage(0)}
+    else if(G.state==='finished'){G.hearts=G.modeHard?2:3;G.points=0;G.selectedStage=0;startStage(0)}
   };
   document.querySelectorAll('.skin-option').forEach(b=>b.addEventListener('click',()=>{
     G.skin=b.dataset.skin;document.querySelectorAll('.skin-option').forEach(o=>o.classList.toggle('active',b===o));
@@ -460,5 +660,5 @@
   for(const b of document.querySelectorAll('.skin-option'))Art.avatar(b.querySelector('canvas'),b.dataset.skin);
   makeWorld();home();resize();requestAnimationFrame(frame);
   // Accessible state for automated smoke tests, no server or network access.
-  if(new URLSearchParams(location.search).has('teste'))window.RPGTeste={game:G,startStage,stageDone,launchQuiz,answerQuiz,interact,hud,update,playCinematic,finishCinematic};
+  if(new URLSearchParams(location.search).has('teste'))window.RPGTeste={game:G,startStage,stageDone,launchQuiz,answerQuiz,interact,hud,update,playCinematic,finishCinematic,pickPeriodicQuestion,physics:Physics,onlineStateData,onlineApplyState,onlineCommand,onlineHooks,guestMovement};
 })();
