@@ -74,3 +74,68 @@ button:focus-visible{outline:3px solid #f5d18c;outline-offset:3px}
   .status-toast{bottom:calc(env(safe-area-inset-bottom, 0px) + 10px);max-width:min(345px, 41vw);font-size:11px;}
   .interaction-hint{bottom:calc(env(safe-area-inset-bottom, 0px) + 69px);max-width:min(345px, 41vw);font-size:10px;}
 }
+
+
+/* v6.4 — música original, acessível e discreta para celular e computador */
+.music-icon-btn{font-size:22px;position:relative;color:#f2d497}
+.music-icon-btn.is-muted{color:#c1c9bc;background:#203b36}
+.music-icon-btn.is-muted:after{content:"";position:absolute;width:24px;height:2px;transform:rotate(-42deg);background:#f6b4a3;border-radius:3px}
+.music-settings{margin:18px 0 6px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;gap:17px;border:1px solid #dcb97a72;border-radius:12px;background:#102d26}
+.music-switch{display:flex;gap:9px;align-items:center;flex:1 1 auto;min-width:0;background:transparent;color:#f4dfaf;font-size:13px;font-weight:800;text-align:left;line-height:1.25}
+.music-switch[aria-pressed="false"]{color:#b2c2b7}
+.music-note{font-size:21px;color:#f2cb81;line-height:1}
+.music-volume-control{display:flex;gap:9px;align-items:center;flex:0 0 43%;max-width:170px;color:#d3e2d5;font-size:10px;letter-spacing:1px;font-weight:850}
+.music-volume-control input{min-width:0;width:100%;accent-color:#e6c17f;cursor:pointer;touch-action:pan-x;height:22px}
+@media(max-width:480px){.music-settings{gap:7px;padding:9px}.music-switch{font-size:11px;gap:5px}.music-volume-control{max-width:128px;gap:5px;font-size:9px;flex-basis:43%}.music-icon-btn{font-size:17px}}
+@media(max-width:340px){.hud{gap:3px!important}.header-actions{gap:2px!important}.stats{gap:2px!important}.stat{padding:3px!important}.music-settings{flex-wrap:wrap}.music-volume-control{max-width:none;flex-basis:100%}}
+
+
+/* v6.4.2 — Botões visuais reais, sem aparência de hyperlink. */
+.secondary-actions{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:stretch;gap:11px;margin-top:14px;
+}
+.secondary-actions button{
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  min-height:48px;padding:12px 14px;border-radius:12px;
+  border:1px solid #96b8a28a;background:#244b41;color:#f9edcf;
+  font-size:13px;font-weight:850;text-decoration:none;line-height:1.25;
+  box-shadow:0 3px 0 #0a221acc,0 5px 16px #081d1933;
+  transition:filter .15s,transform .15s,box-shadow .15s;
+}
+.secondary-actions button:hover{filter:brightness(1.1)}
+.secondary-actions button:active{transform:translateY(2px);box-shadow:0 1px 0 #0a221acc}
+.secondary-actions #onlineOpenBtn{
+  grid-column:1/-1;min-height:70px;justify-content:flex-start;
+  padding:13px 18px;border:2px solid #f7dea8;
+  background:linear-gradient(125deg,#f6dfa6 0%,#eac781 60%,#dba85a 100%);
+  color:#17382d;box-shadow:0 4px 0 #916b39,0 9px 24px #041a143c;
+}
+.secondary-actions #onlineOpenBtn:hover{filter:brightness(1.035)}
+.secondary-actions #onlineOpenBtn:active{box-shadow:0 1px 0 #916b39;transform:translateY(3px)}
+.menu-cta-icon{flex:0 0 27px;width:27px;height:27px}
+.menu-cta-copy{display:flex;flex:1;flex-direction:column;align-items:flex-start;gap:4px;text-align:left}
+.menu-cta-copy strong{font-weight:950;letter-spacing:.65px;font-size:14px}
+.menu-cta-copy small{font-weight:800;letter-spacing:1.1px;font-size:10px;opacity:.82}
+.menu-cta-arrow{font-size:29px;font-weight:700;line-height:1;padding-right:1px}
+.secondary-actions #levelPickerBtn::before{content:'▦';font-size:18px;line-height:1}
+.secondary-actions #mainMenuBtn::before{content:'⌂';font-size:19px;line-height:1}
+.online-back{
+  display:flex;align-items:center;justify-content:center;
+  width:100%;min-height:45px;margin-top:14px;padding:11px 14px;
+  border-radius:11px;border:1px solid #9bb9a096;
+  background:#294c42;color:#f3e0b8;font-size:12px;
+  text-decoration:none;font-weight:850;letter-spacing:.25px;
+  box-shadow:0 3px 0 #091f1b;
+}
+.online-back:hover{background:#365b50}
+.online-back:active{transform:translateY(2px);box-shadow:0 1px 0 #091f1b}
+@media(max-width:450px){
+  .secondary-actions{gap:8px;margin-top:11px}
+  .secondary-actions button{min-height:44px;padding:11px 9px;font-size:12px}
+  .secondary-actions #onlineOpenBtn{min-height:62px;padding:11px 13px}
+  .menu-cta-icon{flex-basis:24px;width:24px;height:24px}
+  .menu-cta-copy strong{font-size:12px}
+  .menu-cta-copy small{font-size:9px;letter-spacing:.6px}
+  .menu-cta-arrow{font-size:24px}
+}

@@ -23,7 +23,7 @@
       return candidates.sort((a,b)=>Math.hypot(a.x-this.player.x,a.y-this.player.y)-Math.hypot(b.x-this.player.x,b.y-this.player.y))[0]||null;
     }
   };
-  let lastFrame=0,tinyToastUntil=0,rotationDismissed=false,onlineSession=0,guestSession=0,guestQuizClock=0,guestWaiting=false;
+  let lastFrame=0,tinyToastUntil=0,rotationDismissed=false,onlineSession=0,guestSession=0,guestQuizClock=0,guestWaiting=false,guestCutsceneSeen='';
   const view={width:innerWidth,height:innerHeight,dpr:1,zoom:1,cameraX:640,cameraY:700};
   const level=D.levels;
   const stopInput=()=>{G.keys={};G.stick={x:0,y:0};G.run=false;$('joystickKnob').style.transform='translate(0px,0px)';$('runBtn').classList.remove('pressed')};
@@ -116,8 +116,11 @@
     }
     if(state.session!==guestSession || G.level!==state.stage){
       guestSession=state.session;G.level=state.stage;makeWorld();G.hearts=G.modeHard?2:3;
-      G.state='playing';guestWaiting=false;guestQuizClock=0;
-      $('mainOverlay').hidden=true;$('onlineOverlay').hidden=true;$('primaryBtn').disabled=false;syncUI();
+      G.state='playing';guestWaiting=false;guestQuizClock=0;guestCutsceneSeen='';
+      // Ao começar uma fase nova, nenhuma tela da fase anterior pode permanecer aberta.
+      $('mainOverlay').hidden=true;$('onlineOverlay').hidden=true;$('quizOverlay').hidden=true;
+      $('aimOverlay').hidden=true;$('learnOverlay').hidden=true;$('cinematicOverlay').hidden=true;
+      G.cinematic=null;$('primaryBtn').disabled=false;syncUI();
       toast('Fase compartilhada iniciada! Ajude o líder nas tarefas.',4);
     }
     const oldRoom=G.adventure?.room||'outdoor',newRoom=state.adventure?.room||'outdoor';
@@ -125,16 +128,21 @@
     G.complete=Number(state.complete)||0;G.laps=Number(state.laps)||0;G.lapProgress=Number(state.lapProgress)||0;
     G.points=Number(state.points)||0;G.missionSeconds=Number(state.missionSeconds)||0;G.stageLimit=Number(state.stageLimit)||220;
     G.adventure=state.adventure||G.adventure;G.markers=state.markers||[];G.animals=state.animals||[];
-    G.escort=state.escort||G.escort;G.cinematic=state.mode==='cutscene'?state.cinematic:null;
-    if(state.mode==='cutscene' && G.state==='onlineScene'){
-      $('cineProgress').style.width=Math.min(100,Math.max(0,(state.cinematic?.t||0)/(state.cinematic?.duration||1)*100))+'%';
-    }
-    if(state.mode==='cutscene' && G.state==='playing'){
-      G.state='onlineScene';$('cineTitle').textContent=state.title||'A HISTÓRIA CONTINUA';
-      $('cineKicker').textContent=state.kicker||'';$('cineCaption').textContent=state.caption||'';
-      $('cineProgress').style.width=Math.min(100,Math.max(0,(state.cinematic?.t||0)/(state.cinematic?.duration||1)*100))+'%';
-      $('cinematicOverlay').hidden=false;
-    }else if(state.mode!=='cutscene'&&G.state==='onlineScene'){G.state='playing';$('cinematicOverlay').hidden=true;G.cinematic=null}
+    G.escort=state.escort||G.escort;
+    // Os convidados assistem à missão no próprio mapa. A tela cinematográfica do
+    // anfitrião NUNCA deve ocupar a tela nem impedir AÇÃO / movimento dos amigos.
+    // O velho estado onlineScene podia ficar preso quando uma notificação atrasava.
+    G.cinematic=null;
+    $('cinematicOverlay').hidden=true;
+    if(G.state==='onlineScene')G.state='playing';
+    if(state.mode==='cutscene'){
+      const id=String(state.session)+':'+String(state.stage)+':'+String(state.cinematic?.kind||state.title||'cena');
+      if(id!==guestCutsceneSeen){
+        guestCutsceneSeen=id;
+        // Aviso pequeno na parte inferior, não uma máscara sobre o personagem.
+        toast((state.title||'Cena bíblica acontecendo')+' · acompanhe a aventura!',4.5);
+      }
+    }else guestCutsceneSeen='';
     hud();syncUI();
   }
   function onlineCommand(uid,command,p){
@@ -152,7 +160,7 @@
     onPlayers:updateOnlinePlayers,onState:onlineApplyState,onCommand:onlineCommand,
     onProfile:profile=>{if(profile&&Number.isInteger(profile.unlocked)){G.unlocked=Math.max(G.unlocked,profile.unlocked);saveUnlock(G.unlocked)}},
     onStatus:status=>{if(status==='playing'&&!Online.info().host){$('onlineHint').textContent='O líder começou. Carregando a aventura...';$('onlineStart').hidden=true}},
-    onLost:reason=>{$('onlineOverlay').hidden=true;G.remotePlayers=[];guestWaiting=false;$('primaryBtn').disabled=false;home();toast(reason,6)},
+    onLost:reason=>{$('onlineOverlay').hidden=true;G.remotePlayers=[];guestWaiting=false;guestCutsceneSeen='';$('primaryBtn').disabled=false;home();toast(reason,6)},
     onError:msg=>{if(!$('onlineOverlay').hidden)$('onlineError').textContent=msg;else toast('Conexão online: '+msg,5)}
   }}
   function onlineLobby(){
@@ -178,6 +186,10 @@
       $('quizBarFill').style.width=(G.quizRemaining/G.quizLimit*100)+'%';
       if(G.quizRemaining<=0)answerQuiz(false);return;
     }
+    // Defesa adicional: mesmo com uma sincronização incompleta, o convidado não
+    // fica preso atrás da cutscene.
+    if(G.state==='onlineScene')G.state='playing';
+    if(!$('cinematicOverlay').hidden)$('cinematicOverlay').hidden=true;
     if(G.state!=='playing')return;
     G.animTime+=dt*1000;guestQuizClock+=dt;
     if(guestQuizClock>=60){guestQuizClock=0;launchQuiz();return}
@@ -192,6 +204,7 @@
     const target=G.getTarget();$('interactionHint').hidden=!(target&&near(target.x,target.y,95));
   }
   function syncUI(){
+    window.RPGMusic?.setScene(G.state,G.level);
     const fullscreen=!!document.fullscreenElement;$('fullscreenBtn').textContent=fullscreen?'⤢':'⛶';$('panelFullscreenExit').hidden=!fullscreen;$('quizFullscreenExit').hidden=!fullscreen;
     $('pauseBtn').textContent=G.state==='paused'?'▶':'Ⅱ';
     $('pauseBtn').disabled=['menu','stageComplete','gameover','finished'].includes(G.state);
@@ -220,13 +233,15 @@
     syncUI();
   }
   function home(){
+    window.RPGMusic?.setScene('menu');
     if(isOnline()){void Online.leave();G.remotePlayers=[];guestWaiting=false;$('onlineOverlay').hidden=true;}
-    $('primaryBtn').disabled=false;guestSession=0;guestWaiting=false;
+    $('primaryBtn').disabled=false;guestSession=0;guestWaiting=false;guestCutsceneSeen='';
     stopInput();G.cinematic=null;G.skill=null;$('cinematicOverlay').hidden=true;$('aimOverlay').hidden=true;$('learnOverlay').hidden=true;G.state='menu';G.level=G.selectedStage;G.hearts=G.modeHard?2:3;
     showPanel({title:'Heróis da Fé',description:'20 histórias bíblicas com desafios de estratégia, agilidade, perguntas e missões em pixel art. Errar pode fazer você perder.',reference:'Antigo Testamento · Jesus · Atos dos Apóstolos',button:'COMEÇAR AVENTURA',showSkins:true,showInstructions:true,allowStages:true});
     hud();showRecords();
   }
   function startStage(stageIndex=G.level){
+    window.RPGMusic?.begin();
     stopInput();G.level=Math.max(0,Math.min(19,stageIndex));G.hearts=G.modeHard?2:3;makeWorld();
     G.state='playing';$('mainOverlay').hidden=true;$('quizOverlay').hidden=true;$('cinematicOverlay').hidden=true;$('aimOverlay').hidden=true;$('learnOverlay').hidden=true;$('statusToast').hidden=true;
     hud();syncUI();
@@ -628,6 +643,7 @@
     catch{$('onlineHint').textContent='Compartilhe este código: '+code}
   };
   $('onlineStart').onclick=async()=>{
+    window.RPGMusic?.begin();
     $('onlineError').textContent='';$('onlineStart').disabled=true;
     try{await Online.start();$('onlineOverlay').hidden=true;
       G.points=0;G.level=G.selectedStage;startStage();
@@ -643,6 +659,7 @@
   showRecords();
   $('levelPickerBtn').onclick=()=>{if($('levelPicker').hidden)showLevels();else{$('levelPicker').hidden=true;$('levelPickerBtn').textContent='Escolher fase'}};
   $('primaryBtn').onclick=()=>{
+    if(['menu','paused','stageComplete','gameover','finished'].includes(G.state))window.RPGMusic?.begin();
     if(G.state==='menu'){
       G.points=0;G.hearts=G.modeHard?2:3;G.level=G.selectedStage;startStage();
       if(mobile)void tryLandscapeFullscreen();

@@ -11,14 +11,15 @@
   <title>Heróis da Fé — Jornada Bíblica</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/icone-192.png">
-  <link rel="stylesheet" href="css/style.css?v=632">
-  <script defer src="js/data.js?v=632"></script>
-  <script defer src="js/adventures.js?v=632"></script>
-  <script defer src="js/art.js?v=632"></script>
-  <script defer src="js/physics.js?v=632"></script>
-  <script defer src="firebase-config.js?v=632"></script>
-  <script defer src="js/multiplayer.js?v=632"></script>
-  <script defer src="js/game.js?v=632"></script>
+  <link rel="stylesheet" href="css/style.css?v=642">
+  <script defer src="js/data.js?v=641"></script>
+  <script defer src="js/adventures.js?v=641"></script>
+  <script defer src="js/art.js?v=641"></script>
+  <script defer src="js/physics.js?v=641"></script>
+  <script defer src="firebase-config.js?v=641"></script>
+  <script defer src="js/multiplayer.js?v=641"></script>
+  <script defer src="js/music.js?v=641"></script>
+  <script defer src="js/game.js?v=641"></script>
 </head>
 <body>
 <div id="app" role="application" aria-label="Jogo Heróis da Fé">
@@ -35,6 +36,7 @@
       <span id="hudLevel" class="stat level">1/20</span>
     </div>
     <div class="header-actions">
+      <button id="musicHudBtn" type="button" class="icon-btn music-icon-btn" aria-label="Desligar música" aria-pressed="true" title="Ligar / desligar música">♫</button>
       <button id="fullscreenBtn" type="button" class="icon-btn" aria-label="Tela cheia e girar na horizontal" title="Tela cheia / horizontal">⛶</button>
       <button id="pauseBtn" type="button" class="icon-btn" aria-label="Pausar ou retomar" title="Pausar">Ⅱ</button>
       <button id="exitBtn" type="button" class="icon-btn exit" aria-label="Sair da fase e voltar ao menu" title="Sair">✕</button>
@@ -107,10 +109,18 @@
         <div id="levelGrid" class="level-grid"></div>
       </div>
       <button id="primaryBtn" class="primary-btn" type="button">COMEÇAR AVENTURA</button>
-      <div class="secondary-actions">
-        <button id="levelPickerBtn" type="button">Escolher fase</button>
-        <button id="onlineOpenBtn" type="button">Jogar online · até 4</button>
-        <button id="mainMenuBtn" type="button" hidden>Voltar ao início</button>
+      <div id="musicSettings" class="music-settings" aria-label="Configurações da trilha sonora">
+        <button id="musicMenuBtn" type="button" class="music-switch" aria-pressed="true"><span class="music-note" aria-hidden="true">♫</span><span id="musicStatusText">Trilha sonora ligada</span></button>
+        <label class="music-volume-control" for="musicVolume"><span>VOLUME</span><input id="musicVolume" type="range" min="0" max="100" value="38" step="1" aria-label="Volume da música"></label>
+      </div>
+      <div class="secondary-actions" aria-label="Modos de jogo">
+        <button id="onlineOpenBtn" type="button" class="menu-cta-online" aria-label="Jogar com amigos, multiplayer para até quatro jogadores">
+          <svg class="menu-cta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="menu-cta-copy"><strong>JOGAR COM AMIGOS</strong><small>MULTIPLAYER · ATÉ 4 JOGADORES</small></span>
+          <span class="menu-cta-arrow" aria-hidden="true">›</span>
+        </button>
+        <button id="levelPickerBtn" type="button" class="menu-cta-secondary">Escolher fase</button>
+        <button id="mainMenuBtn" type="button" class="menu-cta-secondary" hidden>Voltar ao início</button>
       </div>
     </section>
   </div>
@@ -134,7 +144,7 @@
         <button id="onlineStart" type="button" class="primary-btn">INICIAR AVENTURA EM GRUPO</button>
       </div>
       <p id="onlineError" class="online-error" role="status" aria-live="polite"></p>
-      <button id="onlineBack" type="button" class="online-back">← Sair da sala / Voltar ao menu</button>
+      <button id="onlineBack" type="button" class="online-back">← SAIR DA SALA / VOLTAR AO MENU</button>
     </section>
   </div>
   <div id="aimOverlay" class="overlay precision-overlay" role="dialog" aria-modal="true" aria-labelledby="aimTitle" hidden>
