@@ -1,3 +1,30 @@
+# RPG Bíblico — Heróis da Fé · atualização cooperativa v6.5
+
+## O que mudou
+
+**Todos os participantes podem executar objetivos.** O botão AÇÃO do convidado faz a missão avançar sem pedir que o líder aprove ou clique por ele. As tarefas compartilhadas são aplicadas automaticamente e aparecem para toda a equipe.
+
+- Fase 1 (Noé): dentro da arca, cada jogador pode pegar provisões e assumir um depósito diferente. O jogo atribui automaticamente um depósito livre por participante.
+- Fase 2 (Noé): qualquer participante pode receber os animais e organizar os compartimentos; cada compartimento pode ser feito por uma pessoa diferente.
+- Fases com marcos: cada integrante pode concluir marcos disponíveis, sem obrigar a execução em fila. Perguntas e desafios de habilidade são respondidos por quem interage.
+- Mar Vermelho: qualquer participante pode falar com Moisés ou cumprir a etapa de sinalização.
+- Jericó: voltas percorridas pelos convidados também contam para a equipe. O jogador que completar uma volta importante poderá fazer o desafio das trombetas.
+- HUD cooperativo mostra quem realizou tarefas. Cada jogador tem seu próprio personagem e controles.
+- O líder só cria a sala e inicia o capítulo seguinte. A sincronização centralizada da missão continua no dispositivo do líder para impedir conclusões duplicadas; não há etapa de aprovação manual.
+
+## Instalação / atualização
+
+Extraia o ZIP e substitua todos os arquivos/pastas no GitHub conectado à Vercel. Evite enviar o ZIP sem extrair. O `firebase-config.js` do projeto existente foi preservado. **Nenhuma mudança de regras do Firebase é necessária para o fluxo desta versão**, pois o canal `commands` já estava previsto nas regras anteriores publicadas.
+
+## Limitações importantes
+
+Esta implementação ainda usa o líder como sincronizador de estado; se ele desconectar, a sala é encerrada. A entrada/saída do interior da arca ainda acontece para o grupo todo, embora as tarefas dentro dela sejam individuais. O jogo funciona no navegador e requer testes entre dispositivos reais para confirmar sincronização e estabilidade com o Firebase configurado. Não é um servidor antitrapaça: validações de proximidade e conclusão são principalmente no cliente do líder.
+
+## Arquivos
+
+`index.html`, `css/`, `js/`, `assets/`, `firebase-config.js`, `database.rules.json`, `manifest.webmanifest`.
+
+---
 # RPG Bíblico — correção v6.4.1
 
 **Esta versão é uma atualização da 6.4 e preserva a música, as 20 fases e a configuração Firebase já preenchida.**

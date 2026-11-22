@@ -144,13 +144,14 @@ window.RPGArt = (() => {
         const d=a.stalls[i];rect(c,d.x-98,d.y-75,196,126,'#3c2f28');rect(c,d.x-104,d.y-82,208,10,'#ad824c');rect(c,d.x-100,d.y+40,203,10,'#ad824c');
         for(let j=0;j<3;j++)rect(c,d.x-90+j*65,d.y-70,8,112,'#76583c');
         text(c,d.label,d.x,d.y-111,19,'#ffdea0');
-        if(i<g.complete){for(let n=0;n<5;n++){rect(c,d.x-70+n*25,d.y-18-(n%2)*4,28,47,'#b99c62');rect(c,d.x-67+n*25,d.y-14,18,5,'#edce83')}}
+        if(d.done||(!window.RPGOnline?.info().active && i<g.complete)){for(let n=0;n<5;n++){rect(c,d.x-70+n*25,d.y-18-(n%2)*4,28,47,'#b99c62');rect(c,d.x-67+n*25,d.y-14,18,5,'#edce83')}}
         else text(c,'VAZIO',d.x,d.y+3,14,'#a7c6bb');
       }
       if(g.complete<3){
         rect(c,a.cargo.x-44,a.cargo.y-42,88,65,'#a78251');rect(c,a.cargo.x-33,a.cargo.y-51,66,25,'#d2b77e');
-        text(c,g.adventure.carrying?'RETIREI':'PEGAR',a.cargo.x,a.cargo.y-85,16,'#ffdea0');
-        if(a.carrying){rect(c,g.player.x-20,g.player.y-70,40,31,'#c7a773');rect(c,g.player.x-16,g.player.y-68,32,5,'#e9d09a')}
+        const who=window.RPGOnline?.info();
+        text(c,a.carrying||a.carriers?.[who?.uid]!==undefined?'EM TRANSPORTE':'PEGAR',a.cargo.x,a.cargo.y-85,16,'#ffdea0');
+        if(a.carrying||a.carriers?.[who?.uid]!==undefined){rect(c,g.player.x-20,g.player.y-70,40,31,'#c7a773');rect(c,g.player.x-16,g.player.y-68,32,5,'#e9d09a')}
       }
     }else if(g.level===1){
       for(let i=0;i<a.pens.length;i++){
@@ -167,6 +168,7 @@ window.RPGArt = (() => {
     for(const other of (g.remotePlayers||[])){
       if(other.room!=='inside')continue;
       hero(c,other.x,other.y,other.skin,other.dir,other.pose);
+      if(g.level===0&&g.adventure.carriers?.[other.uid]!==undefined){rect(c,other.x-15,other.y-68,30,27,'#c7a773');rect(c,other.x-12,other.y-65,24,4,'#e9d09a')}
       text(c,other.name,other.x,other.y-77,15,'#ffe2a0');
     }
     // Direction hint at center of floor, near exit.

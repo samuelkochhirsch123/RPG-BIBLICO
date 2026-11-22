@@ -13,24 +13,27 @@
     state:'menu',level:0,selectedStage:0,unlocked:getUnlock(),skin:'homem',hearts:3,points:0,remotePlayers:[],
     player:{x:640,y:755},direction:'down',pose:0,walkMs:0,animTime:0,markers:[],animals:[],trees:[],decals:[],
     complete:0,laps:0,lapAngle:null,lapProgress:0,lapDirection:0,adventure:null,cinematic:null,
+    coopStats:{},coopLast:null,coopActor:null,coopQueue:[],coopLaps:{},coopHorn:null,
     missionSeconds:0,nextQuestion:60,questionDeck:[],lastQuestionText:'',quizRemaining:60,quizLimit:60,quizPayload:null,skill:null,modeHard:false,penalties:0,stageLimit:220,lapClock:0,introPlayed:false,escort:{x:640,y:755,far:0},keys:{},stick:{x:0,y:0},run:false,
     getTarget(){
       const lvl=D.levels[this.level],ad=this.adventure;
       if(lvl.type==='laps')return null;
       const special=Adv.target(this);
       if(special)return special;
-      const candidates=lvl.type==='arrive'?this.animals.filter(a=>!a.entered && a.index===ad.boardingIndex):(lvl.type==='feed'?this.markers.filter(m=>!m.done):[this.markers[this.complete]].filter(Boolean));
+      const freeChoice=window.RPGOnline?.info().active;
+      const candidates=lvl.type==='arrive'?this.animals.filter(a=>!a.entered && a.index===ad.boardingIndex):((freeChoice||lvl.type==='feed')?this.markers.filter(m=>!m.done):[this.markers[this.complete]].filter(Boolean));
       return candidates.sort((a,b)=>Math.hypot(a.x-this.player.x,a.y-this.player.y)-Math.hypot(b.x-this.player.x,b.y-this.player.y))[0]||null;
     }
   };
-  let lastFrame=0,tinyToastUntil=0,rotationDismissed=false,onlineSession=0,guestSession=0,guestQuizClock=0,guestWaiting=false,guestCutsceneSeen='';
+  let lastFrame=0,tinyToastUntil=0,rotationDismissed=false,onlineSession=0,guestSession=0,guestQuizClock=0,guestWaiting=false,guestCutsceneSeen='',guestCoopSeen='',guestHornSeen='',lastGuestActionAt=-1000;
   const view={width:innerWidth,height:innerHeight,dpr:1,zoom:1,cameraX:640,cameraY:700};
   const level=D.levels;
   const stopInput=()=>{G.keys={};G.stick={x:0,y:0};G.run=false;$('joystickKnob').style.transform='translate(0px,0px)';$('runBtn').classList.remove('pressed')};
   function rand(n){let v=Math.sin((n+1)*91.71+(G.level+3)*37.33)*45124.337;return v-Math.floor(v)}
   function makeWorld(){
-    G.player={x:640,y:755};G.direction='down';G.walkMs=0;G.pose=0;
+    G.player={x:640,y:755};G.direction='down';G.walkMs=0;G.pose=0;lastGuestActionAt=-1000;
     G.complete=0;G.laps=0;G.lapAngle=null;G.lapProgress=0;G.lapDirection=0;
+    G.coopStats={};G.coopLast=null;G.coopActor=null;G.coopQueue=[];G.coopLaps={};G.coopHorn=null;
     G.missionSeconds=0;G.nextQuestion=60;G.quizRemaining=60;G.animTime=0;G.cinematic=null;G.skill=null;G.penalties=0;G.stageLimit=level[G.level].limit||240;G.lapClock=0;G.escort={x:640,y:755,far:0};
     G.markers=[];G.animals=[];G.trees=[];G.decals=[];G.questionDeck=[];
     const stage=level[G.level];G.adventure=Adv.create(stage);
@@ -82,12 +85,73 @@
     $('missionText').textContent=message+` · ⏳ ${timerLeft}s`;
     $('countLabel').textContent=done+'/'+maximum;
     $('missionFill').style.width=Math.min(100,done*100/maximum)+'%';
+    const team=$('coopTeam');
+    if(team){const active=isOnline();team.hidden=!active;if(active){const vals=Object.values(G.coopStats||{}).sort((a,b)=>b.tasks-a.tasks);team.textContent=vals.length?'EQUIPE · '+vals.map(x=>`${x.name}: ${x.tasks}`).join(' · '):'EQUIPE · Cada jogador pode concluir tarefas';}}
   }
   function toast(msg,seconds=2.8){$('statusToast').textContent=msg;$('statusToast').hidden=false;tinyToastUntil=performance.now()+seconds*1000}
   function isOnline(){return !!Online?.info().active}
   function isGuest(){return isOnline() && !Online.info().host}
+  function currentActor(){if(G.coopActor)return G.coopActor;const info=Online?.info();return {uid:info?.uid||'solo',name:info?.name||'Jogador'}}
+  function celebrateCoop(detail){
+    if(!isOnline()||!Online.info().host)return;
+    const {uid,name}=currentActor();const stat=G.coopStats[uid]||{name,tasks:0};
+    stat.name=String(name||'Jogador').slice(0,18);stat.tasks++;
+    G.coopStats[uid]=stat;
+    G.coopLast={id:Date.now()+'-'+Math.random().toString(36).slice(2,7),uid,name:stat.name,detail};
+    hud();
+  }
+  const SKILL_INFOS={fishing:['Puxe a rede no momento certo','Alinhe-se à bóia móvel e lance a rede.'],rhythm:['Acompanhe o ritmo do louvor','Sincronize com o sinal luminoso. A oração e o louvor estão em Atos 16:25.'],shipwreck:['Enfrente as ondas','Mantenha a embarcação na rota em meio às ondas.'],storm:['Mantenha o barco estável','Oriente a tripulação durante a tempestade.']};
+  function selectedMarker(){
+    const candidates=G.markers.filter(m=>!m.done&&near(m.x,m.y,98));
+    if(!candidates.length)return null;
+    return candidates.sort((a,b)=>Math.hypot(a.x-G.player.x,a.y-G.player.y)-Math.hypot(b.x-G.player.x,b.y-G.player.y))[0];
+  }
+  async function sendGuestTask(details){
+    // Atualize a posição primeiro: depois da corrida o Firebase pode estar até
+    // 240 ms atrasado, e a tarefa seria recusada por estar fora da área.
+    const now=performance.now();if(now-lastGuestActionAt<450)return;
+    lastGuestActionAt=now;
+    try{
+      await Online.position({x:G.player.x,y:G.player.y,dir:G.direction,pose:G.pose,room:G.adventure?.room||'outdoor'},true);
+      await Online.command('interact',details);
+    }catch(err){toast('Não foi possível sincronizar esta ação. Tente novamente.',3)}
+  }
+  function guestInteract(){
+    const stage=level[G.level],a=G.adventure;
+    if(stage.type==='laps'){toast('Marche junto à muralha: suas voltas também contam para a equipe.',2.8);return}
+    // Cada convidado responde à sua própria pergunta ou mira antes de concluir a tarefa.
+    const special=stage.type==='ark'||stage.type==='arrive'||stage.type==='sea'||(stage.type==='storm'&&G.complete>=stage.count);
+    if(special){
+      if(stage.type==='sea'&&a.seaOpened&&!a.seaMarked){
+        startSkill(()=>{void sendGuestTask({task:'sea-signal',stage:G.level,session:guestSession})},3,
+          {title:'Sinalize a travessia',hint:'Complete três sinais de orientação. Deus abriu o mar; você auxilia o povo.',secs:G.modeHard?24:35});return;
+      }
+      void sendGuestTask({task:'world',stage:G.level,session:guestSession});return;
+    }
+    const mark=selectedMarker();if(!mark){toast('Aproxime-se de uma tarefa ainda não concluída.',2);return}
+    const complete=()=>{void sendGuestTask({task:'marker',index:G.markers.indexOf(mark),stage:G.level,session:guestSession})};
+    const taskIndex=G.markers.indexOf(mark);
+    const custom=D.stageChallenges?.[G.level]?.[taskIndex];
+    if(['knowledge','granary','story'].includes(stage.type)){
+      askQuestion(custom||D.questions[G.level],complete,G.modeHard?26:40);return;
+    }
+    if(SKILL_INFOS[stage.type]){
+      const info=SKILL_INFOS[stage.type];startSkill(complete,G.modeHard?3:2,{title:info[0],hint:info[1],secs:G.modeHard?20:28});return;
+    }
+    if(['route','investigate','escort'].includes(stage.type) && taskIndex%2===1){
+      askQuestion(D.questions[G.level],complete,G.modeHard?25:38);return;
+    }
+    complete();
+  }
   function updateOnlinePlayers(players,selfId){
+    const previous=new Map(G.remotePlayers.map(p=>[p.uid,p]));
     G.remotePlayers=Object.entries(players||{}).filter(([uid])=>uid!==selfId).map(([uid,p])=>({uid,name:String(p.name||'Jogador').slice(0,18),skin:p.skin||'homem',x:Number(p.x)||640,y:Number(p.y)||755,dir:p.dir||'down',pose:p.pose?1:0,room:p.room||'outdoor'}));
+    if(isOnline()&&Online.info().host&&G.state==='playing'&&G.level===8){
+      for(const p of G.remotePlayers){const before=previous.get(p.uid);if(before&&p.room==='outdoor'){
+        const dx=p.x-before.x,dy=p.y-before.y;
+        if(Math.hypot(dx,dy)>1)checkLaps(dx,dy,p,p.uid);
+      }}
+    }
     const list=$('onlinePlayers');list.replaceChildren();
     const ids=Object.keys(players||{});$('onlinePlayerCount').textContent=ids.length+'/4';
     for(const uid of ids){const p=players[uid],li=document.createElement('li');li.textContent=(p.skin==='menina'?'♀ ':p.skin==='mulher'?'♀ ':p.skin==='menino'?'♂ ':'♂ ')+(p.name||'Jogador');
@@ -99,7 +163,7 @@
       adventure:G.adventure,markers:G.markers,animals:G.animals,escort:G.escort,
       cinematic:G.cinematic?{kind:G.cinematic.kind,t:G.cinematic.t,duration:G.cinematic.duration}:null,
       title:$('cineTitle').textContent,kicker:$('cineKicker').textContent,caption:$('cineCaption').textContent,
-      leaderHearts:G.hearts,updatedAt:Date.now()};
+      leaderHearts:G.hearts,coopStats:G.coopStats,coopLast:G.coopLast,coopHorn:G.coopHorn,updatedAt:Date.now()};
   }
   function onlineApplyState(state){
     if(!isGuest()||!state||!Number.isInteger(state.stage)||state.stage<0||state.stage>19)return;
@@ -108,7 +172,7 @@
       if(!guestWaiting){guestWaiting=true;stopInput();G.state='onlineWaiting';
         G.unlocked=Math.max(G.unlocked,Math.min(19,state.stage));saveUnlock(G.unlocked);void Online.saveProgress(G.unlocked,Number(state.points)||0);
         showPanel({title:state.mode==='gameover'?'Equipe sem vidas':state.mode==='finished'?'Jornada concluída!':'Fase concluída!',
-          description:'O líder da sala decide quando começar ou repetir o próximo capítulo. Aguarde com os amigos.',
+          description:'O líder inicia o próximo capítulo. Durante as fases, todos podem cumprir tarefas e desafios. Aguarde a equipe.',
           reference:'Multiplayer · sala '+Online.info().room,button:'AGUARDE O LÍDER',canHome:true});
         $('primaryBtn').disabled=true;
       }
@@ -121,7 +185,7 @@
       $('mainOverlay').hidden=true;$('onlineOverlay').hidden=true;$('quizOverlay').hidden=true;
       $('aimOverlay').hidden=true;$('learnOverlay').hidden=true;$('cinematicOverlay').hidden=true;
       G.cinematic=null;$('primaryBtn').disabled=false;syncUI();
-      toast('Fase compartilhada iniciada! Ajude o líder nas tarefas.',4);
+      guestCoopSeen='';guestHornSeen='';lastGuestActionAt=-1000;toast('Missão em equipe! Cada jogador pode concluir tarefas.',4);
     }
     const oldRoom=G.adventure?.room||'outdoor',newRoom=state.adventure?.room||'outdoor';
     if(oldRoom!==newRoom){G.player=newRoom==='inside'?{x:640,y:776}:{x:640,y:568};stopInput()}
@@ -129,6 +193,18 @@
     G.points=Number(state.points)||0;G.missionSeconds=Number(state.missionSeconds)||0;G.stageLimit=Number(state.stageLimit)||220;
     G.adventure=state.adventure||G.adventure;G.markers=state.markers||[];G.animals=state.animals||[];
     G.escort=state.escort||G.escort;
+    G.coopStats=state.coopStats||{};G.coopLast=state.coopLast||null;G.coopHorn=state.coopHorn||null;
+    if(G.coopLast&&G.coopLast.id!==guestCoopSeen){
+      guestCoopSeen=G.coopLast.id;
+      toast((G.coopLast.uid===Online.info().uid?'Você':G.coopLast.name)+' · '+G.coopLast.detail,3.2);
+    }
+    if(G.coopHorn&&G.coopHorn.uid===Online.info().uid&&guestHornSeen!==G.coopHorn.id&&G.state==='playing'){
+      guestHornSeen=G.coopHorn.id;
+      const horn=G.coopHorn;
+      startSkill(()=>{void sendGuestTask({task:'horn-success',hornId:horn.id,stage:G.level,session:guestSession})},horn.final?3:2,
+        {title:horn.final?'TOQUE FINAL DAS TROMBETAS':'TOQUE DAS TROMBETAS',hint:'Acerte o ritmo dos sacerdotes de Jericó.',secs:G.modeHard?19:29,
+          fail:()=>{void sendGuestTask({task:'horn-fail',hornId:horn.id,stage:G.level,session:guestSession})}});
+    }
     // Os convidados assistem à missão no próprio mapa. A tela cinematográfica do
     // anfitrião NUNCA deve ocupar a tela nem impedir AÇÃO / movimento dos amigos.
     // O velho estado onlineScene podia ficar preso quando uma notificação atrasava.
@@ -145,16 +221,69 @@
     }else guestCutsceneSeen='';
     hud();syncUI();
   }
+  // O líder apenas mantém uma cópia consistente da missão. TODOS executam tarefas;
+  // cada interação dos convidados é aplicada automaticamente sem aprovação manual.
   function onlineCommand(uid,command,p){
-    if(!isOnline()||!Online.info().host||G.state!=='playing'||command.kind!=='interact')return;
+    if(!isOnline()||!Online.info().host||command.kind!=='interact')return;
     if(!p||!Number.isFinite(Number(p.x))||!Number.isFinite(Number(p.y)))return;
-    // O comando de um convidado usa a última posição registrada no banco de dados.
+    if(command.stage!==G.level||command.session!==onlineSession)return;
+    if(G.state!=='playing'){
+      if(['cutscene','quiz','learn','skill','paused'].includes(G.state)){
+        if(G.coopQueue.length<30)G.coopQueue.push({uid,command,p,created:Date.now()});
+      }
+      return;
+    }
+    applyCoopCommand(uid,command,p);
+  }
+  function applyCoopCommand(uid,command,p){
+    if(command.stage!==G.level||command.session!==onlineSession||G.state!=='playing')return;
+    const name=String(p.name||'Jogador').slice(0,18);
     const before=G.player,oldDirection=G.direction;
+    const previousActor=G.coopActor,oldRoom=G.adventure?.room;
+    // O servidor recebe coordenadas atualizadas; validamos novamente a proximidade.
     G.player={x:Math.max(25,Math.min(1255,Number(p.x))),y:Math.max(41,Math.min(936,Number(p.y)))};
-    interact();
-    G.player=(G.adventure?.room===p.room)?before:(G.adventure?.room==='inside'?{x:640,y:776}:{x:640,y:568});
-    G.direction=oldDirection;
-    void Online.snapshot(onlineStateData(),true);
+    G.coopActor={uid,name};
+    try{
+      if(command.task==='marker'){
+        const i=Number(command.index),mark=G.markers[i];
+        if(Number.isInteger(i)&&i>=0&&i<G.markers.length&&!mark.done&&near(mark.x,mark.y,130)&&G.adventure?.room==='outdoor'){
+          if(level[G.level].type==='escort'&&Math.hypot(G.escort.x-G.player.x,G.escort.y-G.player.y)>205)return;
+          if(level[G.level].type==='feed')G.adventure.feedCooldown=G.missionSeconds+2;
+          concludeMarker(mark,level[G.level].type==='feed'?60:80);
+        }
+      } else if(command.task==='sea-signal'){
+        if(G.level===6&&G.adventure.seaOpened&&!G.adventure.seaMarked){
+          G.adventure.seaMarked=true;G.stageLimit+=40;G.points+=100;
+          celebrateCoop('sinalizou a travessia do mar');hud();
+        }
+      } else if(command.task==='horn-success'||command.task==='horn-fail'){
+        if(G.level===8&&G.coopHorn?.id===command.hornId&&G.coopHorn.uid===uid){
+          const last=G.coopHorn.final;G.coopHorn=null;
+          if(command.task==='horn-success'){
+            celebrateCoop('tocou a trombeta');
+            if(last)playCinematic('jericho',{kicker:'JOSUÉ 6:20',title:'AS MURALHAS CAÍRAM',caption:'Os sacerdotes tocaram, o povo gritou e a muralha caiu.',duration:7,onEnd:stageDone});
+          }else{G.laps=Math.max(0,G.laps-1);G.lapProgress=0;toast('Ritmo perdido: refaçam esta volta.',3)}
+          hud();
+        }
+      } else if(command.task==='world'){
+        // O mesmo botão AÇÃO funciona para Noé, entrada dos animais e Moisés.
+        // O anfitrião não precisa clicar nada para o pedido do convidado funcionar.
+        if((p.room||'outdoor')!==oldRoom)return;
+        interact();
+      }
+    } finally {
+      G.coopActor=previousActor;G.direction=oldDirection;
+      G.player=oldRoom===G.adventure?.room?before:(G.adventure?.room==='inside'?{x:640,y:776}:{x:640,y:568});
+      if(isOnline()&&Online.info().host)void Online.snapshot(onlineStateData(),true);
+    }
+  }
+  function drainCoopQueue(){
+    if(!isOnline()||!Online.info().host||G.state!=='playing'||!G.coopQueue.length)return;
+    const queue=G.coopQueue.splice(0);
+    for(let i=0;i<queue.length;i++){
+      const job=queue[i];if(G.state!=='playing'){G.coopQueue.unshift(...queue.slice(i));break}
+      if(Date.now()-job.created<125000)applyCoopCommand(job.uid,job.command,job.p);
+    }
   }
   function onlineHooks(){return {
     onPlayers:updateOnlinePlayers,onState:onlineApplyState,onCommand:onlineCommand,
@@ -166,8 +295,8 @@
   function onlineLobby(){
     const info=Online.info();$('onlineSetup').hidden=true;$('onlineLobby').hidden=false;
     $('onlineRoomCode').textContent=info.room;$('onlineError').textContent='';
-    $('onlineDescription').textContent=info.host?'Você é o líder. Compartilhe o código e inicie quando todos entrarem.':'Você entrou! Aguarde o líder iniciar a aventura.';
-    $('onlineHint').textContent=info.host?'Quando todos entrarem, toque em INICIAR. A progressão de fases é controlada pelo líder.':'O líder decide quando cada capítulo começa.';
+    $('onlineDescription').textContent=info.host?'Você criou a sala. Todos poderão realizar tarefas; você só inicia os capítulos.':'Você entrou! Poderá cumprir missões e desafios como todos os outros.';
+    $('onlineHint').textContent=info.host?'Convide os amigos! Cada pessoa pode concluir objetivos e contribuir com o grupo.':'Prepare-se: Ação, perguntas e desafios funcionam para você também.';
     $('onlineStart').hidden=!info.host;$('onlineStart').disabled=false;
     updateOnlinePlayers(info.players,info.uid);
   }
@@ -245,7 +374,7 @@
     stopInput();G.level=Math.max(0,Math.min(19,stageIndex));G.hearts=G.modeHard?2:3;makeWorld();
     G.state='playing';$('mainOverlay').hidden=true;$('quizOverlay').hidden=true;$('cinematicOverlay').hidden=true;$('aimOverlay').hidden=true;$('learnOverlay').hidden=true;$('statusToast').hidden=true;
     hud();syncUI();
-    if(isOnline()&&Online.info().host){onlineSession++;void Online.snapshot(onlineStateData(),true)}
+    if(isOnline()&&Online.info().host){onlineSession++;G.coopQueue=[];void Online.snapshot(onlineStateData(),true)}
     toast(G.level===8?'Jericó: os seis primeiros dias aparecem na cena. Você joga as sete voltas do sétimo dia.':G.level===1?'Os animais vêm por conta própria. Cada entrada leva tempo e você organizará os compartimentos.':level[G.level].mission,6);if(G.level===8)playCinematic('introJericho',{title:'OS SEIS PRIMEIROS DIAS',kicker:'JOSUÉ 6:12–14',caption:'O povo marchou uma volta por dia. Agora chegou o sétimo dia: serão sete voltas.',duration:5,onEnd:()=>{G.lapClock=G.missionSeconds}});
   }
   function paused(){if(G.state!=='playing')return;stopInput();G.state='paused';showPanel({title:'Jogo pausado',description:level[G.level].story,reference:level[G.level].reference,button:'RETOMAR AVENTURA',canHome:true})}
@@ -304,22 +433,43 @@
     q=randomizeOptions(q);
     stopInput();G.state='quiz';G.quizRemaining=limit;G.quizLimit=limit;G.quizPayload={q,success};$('quizQuestion').textContent=q[0];const target=$('quizAnswers');target.replaceChildren();q[1].forEach((t,i)=>{const b=document.createElement('button');b.type='button';b.textContent=String.fromCharCode(65+i)+') '+t;b.onclick=()=>answerQuiz(i===q[2]);target.appendChild(b)});$('quizOverlay').hidden=false;const sec=Math.ceil(limit);$('quizClock').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');$('quizBarFill').style.width='100%';syncUI()
   }
-  function concludeMarker(mark,points=70){mark.done=true;G.complete++;G.points+=points;hud();if(G.complete>=level[G.level].count){const stage=level[G.level];if(stage.type==='story')playCinematic('scene',{title:'UMA HISTÓRIA DE AMOR',kicker:'LUCAS 22–23',caption:'A cruz faz parte da história que aponta para a ressurreição.',duration:6,onEnd:stageDone});else if(stage.type==='shipwreck')playCinematic('storm',{title:'TODOS CHEGARAM À TERRA',kicker:'ATOS 27:44',caption:'Mesmo depois do naufrágio, todos chegaram vivos à terra.',duration:5.6,onEnd:stageDone});else if(stage.type==='rhythm')playCinematic('scene',{title:'PORTAS ABERTAS',kicker:'ATOS 16:25–34',caption:'O terremoto aconteceu, e o carcereiro ouviu a mensagem.',duration:5.3,onEnd:stageDone});else if(stage.type==='storm')playCinematic('storm',{title:'SILÊNCIO! AQUIETAI-VOS!',kicker:'MARCOS 4:39',caption:'Jesus repreendeu o vento e o mar, e tudo se acalmou.',duration:6,onEnd:stageDone});else if(stage.type==='feed')playCinematic('bread',{kicker:'JOÃO 6:11–13',title:'TODOS FICARAM SATISFEITOS',caption:'Jesus multiplicou os pães e os peixes para a multidão.',duration:5,onEnd:stageDone});else stageDone()}else toast('Etapa concluída! Siga o próximo marco.',2.8)}
+  function concludeMarker(mark,points=70){if(mark.done)return;mark.done=true;G.complete=isOnline()?G.markers.filter(m=>m.done).length:G.complete+1;G.points+=points;celebrateCoop('concluiu '+mark.label);hud();if(G.complete>=level[G.level].count){const stage=level[G.level];if(stage.type==='story')playCinematic('scene',{title:'UMA HISTÓRIA DE AMOR',kicker:'LUCAS 22–23',caption:'A cruz faz parte da história que aponta para a ressurreição.',duration:6,onEnd:stageDone});else if(stage.type==='shipwreck')playCinematic('storm',{title:'TODOS CHEGARAM À TERRA',kicker:'ATOS 27:44',caption:'Mesmo depois do naufrágio, todos chegaram vivos à terra.',duration:5.6,onEnd:stageDone});else if(stage.type==='rhythm')playCinematic('scene',{title:'PORTAS ABERTAS',kicker:'ATOS 16:25–34',caption:'O terremoto aconteceu, e o carcereiro ouviu a mensagem.',duration:5.3,onEnd:stageDone});else if(stage.type==='storm')playCinematic('storm',{title:'SILÊNCIO! AQUIETAI-VOS!',kicker:'MARCOS 4:39',caption:'Jesus repreendeu o vento e o mar, e tudo se acalmou.',duration:6,onEnd:stageDone});else if(stage.type==='feed')playCinematic('bread',{kicker:'JOÃO 6:11–13',title:'TODOS FICARAM SATISFEITOS',caption:'Jesus multiplicou os pães e os peixes para a multidão.',duration:5,onEnd:stageDone});else stageDone()}else toast('Etapa concluída! Siga o próximo marco.',2.8)}
   function startSkill(purpose,goal,onFinish,{title='Desafio de precisão',hint='Acompanhe o sinal em movimento e alinhe a mira.',secs=25,fail}={}){
     stopInput();G.state='skill';G.skill={purpose,goal,index:0,time:secs,initial:secs,miss:0,retX:.5,retY:.5,phase:0,fail,title,hint};$('aimOverlay').hidden=false;$('aimTitle').textContent=title;$('aimDescription').textContent=hint;$('aimKicker').textContent=level[G.level].reference;$('aimLearning').hidden=true;drawSkill();syncUI()
   }
   function skillTarget(){const sk=G.skill;if(!sk)return {x:.5,y:.5};const v=sk.phase+sk.index*1.77;return {x:.5+Math.sin(v*1.45)*(.28+(G.modeHard?.07:0)),y:.5+Math.cos(v*1.21)*(.26+(G.modeHard?.04:0))}}
   function drawSkill(){const sk=G.skill;if(!sk)return;const target=skillTarget();$('aimTarget').style.left=(target.x*100)+'%';$('aimTarget').style.top=(target.y*100)+'%';$('aimReticle').style.left=(sk.retX*100)+'%';$('aimReticle').style.top=(sk.retY*100)+'%';$('aimCount').textContent=`ALVO ${sk.index+1} DE ${sk.goal}`;$('aimTime').textContent=`${Math.ceil(sk.time)}s`;$('aimErrors').textContent=`ERROS ${sk.miss}/3`;}
-  function failSkill(){const sk=G.skill;if(!sk)return;const onFail=sk.fail;G.skill=null;$('aimOverlay').hidden=true;G.state='playing';loseHeart('Desafio de habilidade não concluído');if(G.state==='gameover')return;if(typeof onFail==='function')onFail();syncUI()}
+  function failSkill(){const sk=G.skill;if(!sk)return;const onFail=sk.fail;G.skill=null;$('aimOverlay').hidden=true;G.state='playing';loseHeart('Desafio de habilidade não concluído');if(typeof onFail==='function')onFail();if(G.state==='gameover')return;syncUI()}
   function fireSkill(){const sk=G.skill;if(G.state!=='skill'||!sk)return;const p=skillTarget(),distance=Math.hypot((p.x-sk.retX)*1.3,p.y-sk.retY);const radius=G.modeHard?.09:.145;if(distance>radius){sk.miss++;if(sk.miss>=3)failSkill();else{toast('A mira passou longe! Tente antecipar o movimento.');drawSkill()}return}sk.index++;G.points+=40;if(sk.index>=sk.goal){const purpose=sk.purpose;G.skill=null;$('aimOverlay').hidden=true;G.state='playing';syncUI();G.points+=80;purpose();}else{sk.phase+=.7;sk.time+=5;sk.retX=.5;sk.retY=.5;toast('Alvo acertado! Continue.',1.5);drawSkill()}}
   function interactArk(){
     const a=G.adventure;
     if(a.room==='outdoor'){
-      if(near(640,492,110)){transitionInside();toast('Você entrou na arca. Leve os mantimentos até os depósitos!');}
+      if(near(640,492,110)){transitionInside();celebrateCoop('abriu a entrada da arca');toast('Você entrou na arca. Leve os mantimentos até os depósitos!');}
       else toast('Caminhe até a porta central da arca para entrar.');
       return;
     }
     if(near(640,847,90)){transitionOutside();toast('Você saiu da arca.');return}
+    if(isOnline()){
+      a.carriers ||= {};
+      const actor=currentActor();let assigned=a.carriers[actor.uid];
+      if(assigned!==undefined&&assigned!==null){
+        const stall=a.stalls[assigned];
+        if(stall?.done){delete a.carriers[actor.uid];return}
+        if(stall&&near(stall.x,stall.y,98)){
+          stall.done=true;delete a.carriers[actor.uid];G.complete++;G.points+=85;
+          celebrateCoop('entregou '+stall.label.toLowerCase()+' ao depósito');hud();
+          if(G.complete>=3)playCinematic('arkFinish',{title:'A ARCA ESTÁ PREPARADA',kicker:'GÊNESIS 6:21',caption:'Os mantimentos estão organizados para a viagem.',duration:3.8,onEnd:stageDone});
+        }else toast('Leve as provisões ao depósito '+(stall?.label||'indicado')+'.');
+        return;
+      }
+      if(near(a.cargo.x,a.cargo.y,90)){
+        const occupied=new Set(Object.values(a.carriers));
+        const free=a.stalls.findIndex((item,i)=>!item.done&&!occupied.has(i));
+        if(free<0){toast('Todos os depósitos já têm alguém responsável. Ajude nas outras tarefas!');return}
+        a.carriers[actor.uid]=free;toast('Você pegou '+a.stalls[free].label.toLowerCase()+'. Leve ao depósito.',3);
+      }else toast('Aproxime-se das provisões no centro da arca.');
+      return;
+    }
     if(a.carrying){
       const stall=a.stalls[a.cargoStep];
       if(near(stall.x,stall.y,98)){
@@ -338,14 +488,14 @@
       if(near(640,847,90)){transitionOutside();toast('Você saiu da arca.');return}
       const pen=a.pens.find(p=>!p.done&&near(p.x,p.y,95));
       if(pen){
-        if(a.penCooldown>G.missionSeconds){toast(`Espere ${Math.ceil(a.penCooldown-G.missionSeconds)}s antes de organizar o próximo espaço.`);return}
-        pen.done=true;a.pensDone++;a.penCooldown=G.missionSeconds+4;G.points+=75;toast(`Compartimento das ${pen.label.toLowerCase()} organizado!`);hud();
+        if(!isOnline()&&a.penCooldown>G.missionSeconds){toast(`Espere ${Math.ceil(a.penCooldown-G.missionSeconds)}s antes de organizar o próximo espaço.`);return}
+        pen.done=true;a.pensDone++;a.penCooldown=G.missionSeconds+4;G.points+=75;celebrateCoop('organizou o espaço das '+pen.label.toLowerCase());toast(`Compartimento das ${pen.label.toLowerCase()} organizado!`);hud();
         if(a.pensDone===4)playCinematic('animalFinish',{title:'TODOS ESTÃO A BORDO',kicker:'GÊNESIS 7:8–9',caption:'Os animais chegaram a Noé e foram recebidos na arca.',duration:4.4,onEnd:stageDone});
       }else toast('Vá até um compartimento ainda vazio para organizar os animais.');
       return;
     }
     if(G.complete===4){
-      if(near(640,492,110)){transitionInside();toast('Distribua cada grupo em seu compartimento.',3)}
+      if(near(640,492,110)){transitionInside();celebrateCoop('abriu os compartimentos');toast('Distribua cada grupo em seu compartimento.',3)}
       else toast('Agora aproxime-se da porta e entre na arca.');
       return;
     }
@@ -355,7 +505,7 @@
     if(a.nextReadyAt>G.missionSeconds){toast(`O próximo grupo chega em ${Math.ceil(a.nextReadyAt-G.missionSeconds)} segundos.`);return}
     if(!group.ready){toast('Os animais estão vindo por conta própria. Vá ao encontro deles.');return}
     if(!near(group.x,group.y,106)){toast('Aproxime-se do grupo para liberar sua entrada.');return}
-    group.boarding=true;group.boardTime=0;group.boardX=group.x;group.boardY=group.y;
+    group.boarding=true;group.boardTime=0;group.boardX=group.x;group.boardY=group.y;celebrateCoop('recebeu '+group.label.toLowerCase());
     toast(`Você abriu a passagem! Observe ${group.label.toLowerCase()} caminhando até a arca.`,4);
     hud();
   }
@@ -363,8 +513,8 @@
     const a=G.adventure;
     if(!a.seaOpened){
       if(!near(640,635,112)){toast('Aproxime-se de Moisés, na margem do mar.');return}
-      playCinematic('sea',{kicker:'ÊXODO 14:21–22',title:'O MAR VERMELHO SE ABRE',caption:'Um forte vento soprou, as águas se dividiram e surgiu terra seca.',duration:7,onEnd:()=>{a.seaOpened=true;a.seaProgress=1;toast('As águas se abriram! Sinalize a passagem para as famílias.',5);hud()}});
-    }else if(!a.seaMarked){startSkill(()=>{a.seaMarked=true;G.stageLimit+=40;G.points+=100;toast('Passagem sinalizada! Atravesse com o povo pela terra seca.',5);hud()},3,{title:'Sinalize a travessia',hint:'Acerte 3 pontos seguros em movimento. Deus abriu o mar; este é um desafio de orientação.',secs:G.modeHard?24:35});}else toast('Acompanhe as famílias pelo caminho seco e chegue à outra margem.');
+      celebrateCoop('encontrou Moisés');playCinematic('sea',{kicker:'ÊXODO 14:21–22',title:'O MAR VERMELHO SE ABRE',caption:'Um forte vento soprou, as águas se dividiram e surgiu terra seca.',duration:7,onEnd:()=>{a.seaOpened=true;a.seaProgress=1;toast('As águas se abriram! Sinalize a passagem para as famílias.',5);hud()}});
+    }else if(!a.seaMarked){startSkill(()=>{a.seaMarked=true;G.stageLimit+=40;G.points+=100;celebrateCoop('sinalizou a travessia do mar');toast('Passagem sinalizada! Atravesse com o povo pela terra seca.',5);hud()},3,{title:'Sinalize a travessia',hint:'Acerte 3 pontos seguros em movimento. Deus abriu o mar; este é um desafio de orientação.',secs:G.modeHard?24:35});}else toast('Acompanhe as famílias pelo caminho seco e chegue à outra margem.');
   }
   function interactStorm(){
     const a=G.adventure;
@@ -384,24 +534,24 @@
   }
   function interact(){
     if(G.state!=='playing')return;
-    if(isGuest()){void Online.command('interact');toast('Interação enviada ao líder da sala.',1.7);return;}
+    if(isGuest()){guestInteract();return;}
     const lvl=level[G.level];
     if(lvl.type==='ark'){interactArk();return}
     if(lvl.type==='arrive'){interactAnimals();return}
     if(lvl.type==='sea'){interactSea();return}
     if(lvl.type==='storm'&&G.complete>=lvl.count){interactStorm();return}
     if(lvl.type==='laps'){toast('Siga a trilha marcada. Ao concluir certas voltas, acerte o ritmo das trombetas.');return}
-    if(lvl.type==='feed' && G.missionSeconds<G.adventure.feedCooldown){toast(`Próxima entrega em ${Math.ceil(G.adventure.feedCooldown-G.missionSeconds)}s.`);return}
-    const mark=(lvl.type==='feed'?G.markers.find(m=>!m.done&&near(m.x,m.y,85)):G.markers[G.complete]);
+    if(!isOnline()&&lvl.type==='feed' && G.missionSeconds<G.adventure.feedCooldown){toast(`Próxima entrega em ${Math.ceil(G.adventure.feedCooldown-G.missionSeconds)}s.`);return}
+    const mark=(isOnline()?selectedMarker():(lvl.type==='feed'?G.markers.find(m=>!m.done&&near(m.x,m.y,85)):G.markers[G.complete]));
     if(!mark||mark.done||!near(mark.x,mark.y,90)){toast('Aproxime-se do próximo marco brilhante.');return}
-    const idx=G.complete;
-    const custom=questionForStage();
+    const idx=isOnline()?G.markers.indexOf(mark):G.complete;
+    const custom=isOnline()?D.stageChallenges?.[G.level]?.[idx]:questionForStage();
     if(['knowledge','granary','story'].includes(lvl.type)){
       const q=custom||[D.questions[G.level][0],D.questions[G.level][1],D.questions[G.level][2],D.questions[G.level][3]];
       askQuestion(q,()=>concludeMarker(mark),G.modeHard?26:40);return
     }
     if(['fishing','rhythm','shipwreck','storm'].includes(lvl.type)){
-      const info={fishing:['Puxe a rede no momento certo','Alinhe-se à bóia móvel e lance a rede.'],rhythm:['Acompanhe o ritmo do louvor','Sincronize com o sinal luminoso. A oração e o louvor estão em Atos 16:25.'],shipwreck:['Enfrente as ondas','Mantenha a embarcação na rota em meio às ondas.'],storm:['Mantenha o barco estável','Oriente a tripulação durante a tempestade.']}[lvl.type];
+      const info=SKILL_INFOS[lvl.type];
       startSkill(()=>concludeMarker(mark),G.modeHard?3:2,{title:info[0],hint:info[1],secs:G.modeHard?20:28});return
     }
     if(lvl.type==='feed')G.adventure.feedCooldown=G.missionSeconds+5;
@@ -416,24 +566,58 @@
   // Jericó: o percurso é a trilha marcada pelas oito estacas, não a parede do edifício.
   // Trilha com ampla tolerância para joysticks e telas pequenas. Só conta movimento
   // angular contínuo no mesmo sentido: ficar andando para frente e para trás não pontua.
-  function checkLaps(dx,dy){
+  function coopLapCompleted(uid){
+    G.laps++;G.lapProgress=0;G.points+=65;
+    const actor=Online.info().players?.[uid]||{};
+    const prev=G.coopActor;G.coopActor={uid,name:actor.name||(uid===Online.info().uid?Online.info().name:'Jogador')};
+    celebrateCoop('completou uma volta em Jericó ('+G.laps+'/7)');G.coopActor=prev;
+    toast('A equipe concluiu '+G.laps+'/7 voltas!',3);hud();
+    if([2,4,6,7].includes(G.laps)){
+      const final=G.laps===7;
+      if(uid===Online.info().uid){
+        startSkill(()=>{celebrateCoop('tocou a trombeta');if(final)playCinematic('jericho',{kicker:'JOSUÉ 6:20',title:'AS MURALHAS CAÍRAM',caption:'Os sacerdotes tocaram, o povo gritou e a muralha caiu.',duration:7,onEnd:stageDone});else toast('Toque das trombetas concluído!',3)},final?3:2,
+          {title:final?'O TOQUE FINAL DAS TROMBETAS':'O TOQUE DAS TROMBETAS',hint:'Acerte o ritmo dos sacerdotes diante da arca.',secs:G.modeHard?19:29,fail:()=>{G.laps=Math.max(0,G.laps-1);hud()}});
+      }else{
+        G.coopHorn={id:Date.now()+'-'+Math.random().toString(36).slice(2,6),uid,final,created:Date.now()};
+        toast('O jogador que fechou a volta fará o toque da trombeta!',3);
+        void Online.snapshot(onlineStateData(),true);
+      }
+    }else if(G.laps>=7){playCinematic('jericho',{kicker:'JOSUÉ 6:20',title:'AS MURALHAS CAÍRAM',caption:'O povo gritou e a muralha caiu. A vitória veio do Senhor.',duration:7,onEnd:stageDone})}
+  }
+  function checkLaps(dx,dy,actor=G.player,uid=null){
     if(G.level!==8||G.state!=='playing')return;
+    if(isOnline()&&Online.info().host){
+      if(G.coopHorn)return;
+      uid ||= Online.info().uid;
+      const t=G.coopLaps[uid]||{angle:null,progress:0,direction:0};G.coopLaps[uid]=t;
+      const x=actor.x-640,y=actor.y-433,rad=Math.hypot(x,y);
+      if(rad<205||rad>500||Math.abs(dx)+Math.abs(dy)<.05){t.angle=null;return}
+      const a=Math.atan2(y,x);
+      if(t.angle!==null){
+        let delta=a-t.angle;while(delta>Math.PI)delta-=PI2;while(delta< -Math.PI)delta+=PI2;
+        if(Math.abs(delta)<.28){
+          if(!t.direction&&Math.abs(delta)>.003)t.direction=Math.sign(delta);
+          t.progress=Math.max(0,t.progress+delta*t.direction);
+          G.lapProgress=Math.max(G.lapProgress,t.progress);
+          if(t.progress>=PI2-.07){t.progress=0;t.direction=0;t.angle=a;coopLapCompleted(uid);return}
+        }
+      }
+      t.angle=a;return;
+    }
+    // Sozinho: mantém o sistema original de progresso contínuo.
     const x=G.player.x-640,y=G.player.y-433,rad=Math.hypot(x,y);
-    // A trilha tem raio ~335 px. Área válida generosa para caminhar junto às estacas.
     if(rad<205||rad>500||Math.abs(dx)+Math.abs(dy)<.05){G.lapAngle=null;return}
     const a=Math.atan2(y,x);
     if(G.lapAngle!==null){
       let change=a-G.lapAngle;
-      while(change>Math.PI)change-=PI2;
-      while(change< -Math.PI)change+=PI2;
+      while(change>Math.PI)change-=PI2;while(change< -Math.PI)change+=PI2;
       if(Math.abs(change)<.28){
         if(!G.lapDirection&&Math.abs(change)>.003)G.lapDirection=Math.sign(change);
         const previousBucket=Math.floor(G.lapProgress/PI2*20);
         G.lapProgress=Math.max(0,G.lapProgress+change*G.lapDirection);
         if(G.lapProgress>=PI2-.07){
           G.lapProgress=0;G.lapDirection=0;G.laps++;G.points+=65;
-          const msg=`Volta ${G.laps} de 7 no sétimo dia. Continue junto à procissão!`;
-          toast(msg,4);hud();
+          toast(`Volta ${G.laps} de 7 no sétimo dia. Continue junto à procissão!`,4);hud();
           if([2,4,6,7].includes(G.laps)){const isLast=G.laps===7;startSkill(()=>{if(isLast)playCinematic('jericho',{kicker:'JOSUÉ 6:20',title:'AS MURALHAS CAÍRAM',caption:'Os sacerdotes tocaram, o povo gritou e a muralha caiu.',duration:7,onEnd:stageDone});else toast('Toque das trombetas concluído! Continue a marcha.',3)},isLast?3:2,{title:isLast?'O TOQUE FINAL DAS TROMBETAS':'O TOQUE DAS TROMBETAS',hint:'Acerte o ritmo dos sacerdotes que caminhavam diante da Arca da Aliança.',secs:G.modeHard?19:29,fail:()=>{G.laps=Math.max(0,G.laps-1);G.lapProgress=0;hud()}});return}
           if(G.laps>=7){playCinematic('jericho',{kicker:'JOSUÉ 6:20',title:'AS MURALHAS CAÍRAM',caption:'O povo gritou e a muralha caiu. A vitória veio do Senhor.',duration:7,onEnd:stageDone});return}
         }else if(previousBucket!==Math.floor(G.lapProgress/PI2*20))hud();
@@ -465,6 +649,8 @@
       return;
     }
     if(G.state!=='playing')return;
+    drainCoopQueue();
+    if(G.coopHorn&&Date.now()-G.coopHorn.created>55000){G.coopHorn=null;G.laps=Math.max(0,G.laps-1);G.lapProgress=0;toast('Toque não concluído: repitam a volta.',4)}
     G.animTime+=dt*1000;G.missionSeconds+=dt;
     if(G.missionSeconds>G.stageLimit){G.stageLimit=G.missionSeconds+(G.modeHard?90:120);loseHeart('Tempo limite da missão esgotado');if(G.state==='gameover')return;}
     if(Math.floor(G.missionSeconds)%2===0 && Math.floor(G.missionSeconds)!==Math.floor(G.missionSeconds-dt))hud();
@@ -490,8 +676,9 @@
       if(Math.floor(G.missionSeconds)!==Math.floor(G.missionSeconds-dt))hud();
     }
     if(lvl.type==='escort'){
-      const d=Math.hypot(G.player.x-G.escort.x,G.player.y-G.escort.y);
-      if(d>36){let move=Math.min(d-36,dt*(G.modeHard?164:187));G.escort.x+=(G.player.x-G.escort.x)/d*move;G.escort.y+=(G.player.y-G.escort.y)/d*move}
+      const guide=isOnline()&&Online.info().host?[G.player,...G.remotePlayers.filter(p=>p.room==='outdoor')].sort((a,b)=>Math.hypot(a.x-G.escort.x,a.y-G.escort.y)-Math.hypot(b.x-G.escort.x,b.y-G.escort.y))[0]:G.player;
+      const d=Math.hypot(guide.x-G.escort.x,guide.y-G.escort.y);
+      if(d>36){let move=Math.min(d-36,dt*(G.modeHard?164:187));G.escort.x+=(guide.x-G.escort.x)/d*move;G.escort.y+=(guide.y-G.escort.y)/d*move}
       if(d>198){G.escort.far+=dt;if(G.escort.far>(G.modeHard?4:7)){G.escort.far=0;loseHeart('Você se afastou demais das famílias');if(G.state==='gameover')return}}
       else G.escort.far=Math.max(0,G.escort.far-dt*2)
     }
@@ -675,5 +862,5 @@
   for(const b of document.querySelectorAll('.skin-option'))Art.avatar(b.querySelector('canvas'),b.dataset.skin);
   makeWorld();home();resize();requestAnimationFrame(frame);
   // Accessible state for automated smoke tests, no server or network access.
-  if(new URLSearchParams(location.search).has('teste'))window.RPGTeste={game:G,startStage,stageDone,launchQuiz,answerQuiz,interact,hud,update,playCinematic,finishCinematic,pickPeriodicQuestion,physics:Physics,onlineStateData,onlineApplyState,onlineCommand,onlineHooks,guestMovement};
+  if(new URLSearchParams(location.search).has('teste'))window.RPGTeste={game:G,startStage,stageDone,launchQuiz,answerQuiz,interact,hud,update,playCinematic,finishCinematic,pickPeriodicQuestion,physics:Physics,onlineStateData,onlineApplyState,onlineCommand,onlineHooks,guestMovement,guestInteract,applyCoopCommand,drainCoopQueue,checkLaps,celebrateCoop};
 })();

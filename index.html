@@ -11,15 +11,15 @@
   <title>Heróis da Fé — Jornada Bíblica</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/icone-192.png">
-  <link rel="stylesheet" href="css/style.css?v=642">
-  <script defer src="js/data.js?v=641"></script>
-  <script defer src="js/adventures.js?v=641"></script>
-  <script defer src="js/art.js?v=641"></script>
-  <script defer src="js/physics.js?v=641"></script>
-  <script defer src="firebase-config.js?v=641"></script>
-  <script defer src="js/multiplayer.js?v=641"></script>
-  <script defer src="js/music.js?v=641"></script>
-  <script defer src="js/game.js?v=641"></script>
+  <link rel="stylesheet" href="css/style.css?v=650">
+  <script defer src="js/data.js?v=650"></script>
+  <script defer src="js/adventures.js?v=650"></script>
+  <script defer src="js/art.js?v=650"></script>
+  <script defer src="js/physics.js?v=650"></script>
+  <script defer src="firebase-config.js?v=650"></script>
+  <script defer src="js/multiplayer.js?v=650"></script>
+  <script defer src="js/music.js?v=650"></script>
+  <script defer src="js/game.js?v=650"></script>
 </head>
 <body>
 <div id="app" role="application" aria-label="Jogo Heróis da Fé">
@@ -46,6 +46,7 @@
     <div class="mission-top"><span id="missionLabel">MISSÃO</span><span id="countLabel">0/3</span></div>
     <div id="missionText">Prepare a arca de Noé</div>
     <div class="mission-track"><span id="missionFill"></span></div>
+    <div id="coopTeam" class="coop-team" hidden>EQUIPE · Todos podem concluir tarefas</div>
   </div>
   <div id="interactionHint" class="interaction-hint" hidden>PRESSIONE AÇÃO</div>
   <div id="statusToast" class="status-toast" hidden></div>
@@ -128,7 +129,7 @@
     <section class="panel online-panel">
       <div class="panel-headline"><span class="panel-symbol">✧</span><span class="panel-kicker">HERÓIS DA FÉ · MULTIPLAYER BETA</span></div>
       <h1 id="onlineTitle">Jogar com amigos</h1>
-      <p id="onlineDescription">Crie uma sala ou entre com um código. Até quatro jogadores, com um líder para avançar as missões.</p>
+      <p id="onlineDescription">Crie uma sala ou entre com um código. Até quatro jogadores, com tarefas para todos e um líder apenas para iniciar os capítulos.</p>
       <div id="onlineSetup">
         <label class="online-label" for="onlineNick">Seu apelido</label>
         <input id="onlineNick" type="text" maxlength="18" autocomplete="nickname" value="Jogador" placeholder="Seu apelido">
@@ -140,7 +141,7 @@
         <div class="online-code-wrap"><div><small>CÓDIGO DA SALA</small><strong id="onlineRoomCode">------</strong></div><button id="onlineCopy" type="button">Copiar código</button></div>
         <h2>JOGADORES NA SALA <span id="onlinePlayerCount">1/4</span></h2>
         <ul id="onlinePlayers" class="online-player-list" aria-live="polite"></ul>
-        <p class="online-help" id="onlineHint">Envie o código aos amigos. O líder inicia quando todos entrarem.</p>
+        <p class="online-help" id="onlineHint">Envie o código aos amigos. Todos realizam tarefas, perguntas e desafios; o líder apenas inicia cada capítulo.</p>
         <button id="onlineStart" type="button" class="primary-btn">INICIAR AVENTURA EM GRUPO</button>
       </div>
       <p id="onlineError" class="online-error" role="status" aria-live="polite"></p>

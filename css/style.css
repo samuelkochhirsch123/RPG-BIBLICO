@@ -139,3 +139,7 @@ button:focus-visible{outline:3px solid #f5d18c;outline-offset:3px}
   .menu-cta-copy small{font-size:9px;letter-spacing:.6px}
   .menu-cta-arrow{font-size:24px}
 }
+
+/* Multiplayer cooperativo: contribuições discretas, sem cobrir personagens */
+.coop-team {margin-top:5px;font-size:clamp(10px,1vw,12px);font-weight:750;color:#e3d6a5;letter-spacing:.01em;white-space:normal;line-height:1.3;max-height:34px;overflow:hidden}
+@media(max-width:700px){.coop-team{font-size:10px;max-height:26px}}

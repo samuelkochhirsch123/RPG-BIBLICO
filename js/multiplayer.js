@@ -107,9 +107,9 @@
     }catch(e){S.hooks.onError?.('Progresso online: '+errorMessage(e))}
   }
   let sequence=0;
-  async function command(kind){
+  async function command(kind,details={}){
     if(!S.active||S.host||S.status!=='playing')return;
-    sequence++;const serial=Date.now()*100+(sequence%100);try{await S.sdk.set(node('commands',S.uid),{kind,sequence:serial,at:Date.now()})}catch(e){S.hooks.onError?.(errorMessage(e))}
+    sequence++;const serial=Date.now()*100+(sequence%100);try{await S.sdk.set(node('commands',S.uid),{kind,sequence:serial,at:Date.now(),...Object.fromEntries(Object.entries(details||{}).filter(([k])=>['task','index','stage','session','hornId'].includes(k)))})}catch(e){S.hooks.onError?.(errorMessage(e))}
   }
   function lost(reason){if(!S.active)return;const hooks=S.hooks;cleanup();hooks.onLost?.(reason)}
   function cleanup(){for(const un of S.unsub){try{un()}catch{}}S.unsub=[];S.active=false;S.status='';S.room='';S.host=false;S.players={};S.hooks={};S.lastPos=0;S.lastState=0;S.roomRef=null;S.playerRef=null}

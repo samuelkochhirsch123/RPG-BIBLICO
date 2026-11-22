@@ -1,7 +1,7 @@
 /* Regras de missões especiais, cenários interiores e animações. */
 window.RPGAdventures = Object.freeze({
   create(stage){return {
-    room:'outdoor',carrying:false,cargoStep:0,
+    room:'outdoor',carrying:false,cargoStep:0,carriers:{},
     stalls:[{x:350,y:385,label:'FENO'},{x:640,y:385,label:'GRÃOS'},{x:930,y:385,label:'ÁGUA'}],
     cargo:{x:640,y:690},exit:{x:640,y:847},
     arkDoor:{x:640,y:492},
@@ -18,8 +18,8 @@ window.RPGAdventures = Object.freeze({
   target(g){
     const a=g.adventure;if(!a)return null;
     if(a.room==='inside'){
-      if(g.level===0){if(a.carrying)return a.stalls[a.cargoStep];return a.cargo}
-      if(g.level===1)return a.pens.find(p=>!p.done)||null;
+      if(g.level===0){const self=window.RPGOnline?.info();if(self?.active){const assigned=a.carriers?.[self.uid];if(Number.isInteger(assigned))return a.stalls[assigned];return a.cargo}if(a.carrying)return a.stalls[a.cargoStep];return a.cargo}
+      if(g.level===1)return a.pens.filter(p=>!p.done).sort((p,q)=>Math.hypot(p.x-g.player.x,p.y-g.player.y)-Math.hypot(q.x-g.player.x,q.y-g.player.y))[0]||null;
       return a.exit;
     }
     if(g.level===0)return a.arkDoor;
